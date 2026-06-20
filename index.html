@@ -279,6 +279,7 @@ var CHART_LINES = [
 ];
 
 var SK = 'pdiary_v5';
+var SKD = SK + '_deleted';   // Tombstones (gelöschte IDs) für sicheres Zusammenführen
 
 /* ============================ ZUSTAND ============================ */
 var entries = [];
@@ -290,6 +291,7 @@ var selElv = null;
 var selLamo = null;
 var curMode = 'checkin';
 var loadFailed = false;
+var deleted = {};          // gelöschte Einträge (id -> true): verhindert Wiederauferstehen beim Zusammenführen
 
 /* Auto-Sicherung in eine echte Datei (File System Access API) */
 var fileHandle = null;     // FileSystemFileHandle der Sicherungsdatei
@@ -354,7 +356,12 @@ function migrateEntry(e){
 function load(){
   loadFailed = false;
   entries = [];
+  deleted = {};
   if(!storageAvailable()){ return; }
+  try {
+    var d = JSON.parse(localStorage.getItem(SKD) || '[]');
+    if(Array.isArray(d)) d.forEach(function(id){ deleted[String(id)] = true; });
+  } catch(e){}
   var raw = localStorage.getItem(SK);
   if(!raw){ return; }
   try {
@@ -362,7 +369,7 @@ function load(){
     if(!Array.isArray(parsed)) throw new Error('Unerwartetes Format');
     for(var i=0;i<parsed.length;i++){
       var m = migrateEntry(parsed[i]);
-      if(m) entries.push(m);
+      if(m && !deleted[String(m.id)]) entries.push(m);
     }
   } catch(err){
     // Niemals stillschweigend überschreiben: Rohdaten als Wiederherstellungskopie behalten.
@@ -373,17 +380,21 @@ function load(){
   }
 }
 
-function save(){
-  if(!storageAvailable()){ showStorageWarn(); return false; }
+function persistLocal(){
   try {
     localStorage.setItem(SK, JSON.stringify(entries));
-    showStorageOk();
-    scheduleAutoBackup();
+    localStorage.setItem(SKD, JSON.stringify(Object.keys(deleted)));
     return true;
   } catch(e){
     showStorageWarn('Speichern fehlgeschlagen (Speicher voll oder blockiert). Bitte sichere ein Backup.');
     return false;
   }
+}
+function save(){
+  if(!storageAvailable()){ showStorageWarn(); return false; }
+  var ok = persistLocal();
+  if(ok){ showStorageOk(); scheduleAutoBackup(); }
+  return ok;
 }
 
 function showStorageWarn(msg){
@@ -673,6 +684,7 @@ function entryCard(e){
 function delEntry(id){
   if(!confirm('Eintrag löschen?')) return;
   id = String(id);
+  deleted[id] = true;   // Tombstone: bleibt auch nach Merge gelöscht (geräteübergreifend)
   entries = entries.filter(function(e){ return String(e.id) !== id; });
   save(); hsub(); renderVerlauf();
 }
@@ -816,19 +828,12 @@ function restoreData(event){
     try {
       var data = JSON.parse(ev.target.result);
       var incoming = Array.isArray(data) ? data : (data && data.entries);
+      var incDeleted = (data && data.deleted) || [];
       if(!Array.isArray(incoming)){ alert('Diese Datei sieht nicht wie ein gültiges Backup aus.'); return; }
-      var existing = {};
-      entries.forEach(function(e){ existing[String(e.id)] = true; });
-      var added = 0, skipped = 0;
-      incoming.forEach(function(raw){
-        var m = migrateEntry(raw);
-        if(!m){ skipped++; return; }
-        if(existing[String(m.id)]){ skipped++; return; }
-        entries.push(m); existing[String(m.id)] = true; added++;
-      });
+      var added = mergeData(incoming, incDeleted);
       var ok = save(); hsub();
-      alert(added + ' Eintrag(e) geladen' + (skipped ? (', ' + skipped + ' übersprungen (Duplikate)') : '') +
-            '. Insgesamt jetzt ' + entries.length + ' Einträge.' + (ok ? '' : '\n⚠️ Konnte nicht dauerhaft gespeichert werden.'));
+      alert(added + ' neue(r) Eintrag(e) geladen. Insgesamt jetzt ' + entries.length + ' Einträge.' +
+            (ok ? '' : '\n⚠️ Konnte nicht dauerhaft gespeichert werden.'));
       goTab('verlauf');
     } catch(err){
       alert('Die Datei konnte nicht gelesen werden: ' + err.message);
@@ -930,25 +935,31 @@ function idbDel(key){
 }
 
 function backupPayload(){
-  return JSON.stringify({ app:'stimmungstagebuch', schema:SK, exported:new Date().toISOString(), count:entries.length, entries:entries }, null, 2);
+  return JSON.stringify({
+    app:'stimmungstagebuch', schema:SK, exported:new Date().toISOString(),
+    count:entries.length, entries:entries, deleted:Object.keys(deleted)
+  }, null, 2);
 }
 
-/* Liest eine Sicherungsdatei und führt enthaltene Einträge duplikatfrei zusammen.
-   So gehen beim Verbinden (z.B. auf neuem Gerät) keine Daten verloren. */
-function mergeFromHandle(handle){
-  return handle.getFile().then(function(file){ return file.text(); }).then(function(txt){
-    if(!txt || !txt.trim()) return 0;
-    var data = JSON.parse(txt);
-    var incoming = Array.isArray(data) ? data : (data && data.entries);
-    if(!Array.isArray(incoming)) return 0;
-    var existing = {}; entries.forEach(function(e){ existing[String(e.id)] = true; });
-    var added = 0;
-    incoming.forEach(function(raw){
-      var m = migrateEntry(raw);
-      if(m && !existing[String(m.id)]){ entries.push(m); existing[String(m.id)] = true; added++; }
-    });
-    return added;
-  }).catch(function(){ return 0; }); // leere/ungültige Datei -> ignorieren
+/* Führt fremde Einträge + Tombstones duplikatfrei in den Speicher zusammen (Union).
+   - Einträge, die lokal fehlen und NICHT gelöscht sind, werden ergänzt (kein Verlust).
+   - Tombstones (gelöschte IDs) werden vereinigt und auf den Bestand angewendet,
+     damit echte Löschungen bestehen bleiben und nicht „wiederauferstehen“.
+   Gibt die Zahl der ergänzten (zurückgeholten) Einträge zurück. */
+function mergeData(incomingEntries, incomingDeleted){
+  (incomingDeleted || []).forEach(function(id){ deleted[String(id)] = true; });
+  var have = {}; entries.forEach(function(e){ have[String(e.id)] = true; });
+  var added = 0;
+  (incomingEntries || []).forEach(function(raw){
+    var m = migrateEntry(raw); if(!m) return;
+    var id = String(m.id);
+    if(deleted[id] || have[id]) return;
+    entries.push(m); have[id] = true; added++;
+  });
+  if(Object.keys(deleted).length){
+    entries = entries.filter(function(e){ return !deleted[String(e.id)]; });
+  }
+  return added;
 }
 
 function scheduleAutoBackup(){
@@ -956,20 +967,40 @@ function scheduleAutoBackup(){
   if(_abWriting){ _abDirty = true; return; }
   writeBackupNow();
 }
+/* Sicherer Schreibvorgang:
+   1. Datei ERST lesen und fehlende Einträge zurückholen (Union) -> die Datei kann
+      durch eine automatische Sicherung NIE schrumpfen. Selbst wenn der Browser-
+      speicher gelöscht wurde, werden die Einträge aus der Datei wiederhergestellt.
+   2. Lässt sich die Datei nicht lesen/parsen, wird NICHT überschrieben (pausiert),
+      damit ein Lesefehler keinen Datenverlust in die Datei schreiben kann. */
 function writeBackupNow(){
   if(!fileHandle){ return Promise.resolve(); }
   _abWriting = true; _abDirty = false;
   return fileHandle.queryPermission({mode:'readwrite'}).then(function(perm){
     if(perm !== 'granted'){ autoBackupOn = false; renderBackupUI(); return; }
-    return fileHandle.createWritable().then(function(w){
-      return w.write(backupPayload()).then(function(){ return w.close(); });
-    }).then(function(){
-      setLastBackup();
-      setAutoMsg('✓ Automatisch gesichert · ' + timeStr() + ' Uhr · ' + entries.length + ' Einträge');
+    return fileHandle.getFile().then(function(file){ return file.text(); }).then(function(txt){
+      var fileEntries = [], fileDeleted = [];
+      if(txt && txt.trim()){
+        var data = JSON.parse(txt); // wirft bei kaputter Datei -> catch (kein Überschreiben)
+        if(Array.isArray(data)){ fileEntries = data; }
+        else if(data && typeof data === 'object'){ fileEntries = data.entries || []; fileDeleted = data.deleted || []; }
+      }
+      var recovered = mergeData(fileEntries, fileDeleted);
+      if(recovered > 0){
+        persistLocal(); hsub();
+        if(el('tab-verlauf') && el('tab-verlauf').classList.contains('on')) renderVerlauf();
+        toast('↩︎ ' + recovered + ' Eintrag(e) aus Sicherungsdatei wiederhergestellt');
+      }
+      return fileHandle.createWritable().then(function(w){
+        return w.write(backupPayload()).then(function(){ return w.close(); });
+      }).then(function(){
+        setLastBackup();
+        setAutoMsg('✓ Automatisch gesichert · ' + timeStr() + ' Uhr · ' + entries.length + ' Einträge');
+      });
     });
   }).catch(function(){
     autoBackupOn = false; renderBackupUI();
-    showStorageWarn('Auto-Sicherung in die Datei ist fehlgeschlagen. Bitte „Fortsetzen“ tippen oder neu einrichten.');
+    showStorageWarn('Sicherungsdatei nicht lesbar – Auto-Sicherung pausiert, um Überschreiben zu verhindern. Bitte „Fortsetzen“ oder eine andere Datei wählen.');
   }).then(function(){
     _abWriting = false;
     if(_abDirty) writeBackupNow();
@@ -982,17 +1013,15 @@ function setupAutoBackup(){
     suggestedName: 'stimmungstagebuch-daten.json',
     types: [{ description:'Stimmungstagebuch', accept:{'application/json':['.json']} }]
   }).then(function(handle){
-    return mergeFromHandle(handle).then(function(){
-      fileHandle = handle;
-      autoBackupOn = true;
-      return idbSet('backupFileHandle', handle).catch(function(){}); // best effort
-    }).then(function(){
-      save();              // lokal speichern + löst Datei-Schreiben aus
-      renderBackupUI();
-      checkBackupWarning();
-      renderVerlauf();
-      toast('🔒 Auto-Sicherung aktiv');
+    fileHandle = handle;
+    autoBackupOn = true;
+    return idbSet('backupFileHandle', handle).catch(function(){}).then(function(){
+      return writeBackupNow();   // liest evtl. vorhandene Datei (Geräte-Migration) + schreibt sicher
     });
+  }).then(function(){
+    if(fileHandle === null) return; // nichts gewählt
+    renderBackupUI(); checkBackupWarning(); renderVerlauf();
+    toast(autoBackupOn ? '🔒 Auto-Sicherung aktiv' : 'Sicherungsdatei nicht lesbar – bitte andere Datei wählen.');
   }).catch(function(e){
     if(e && e.name === 'AbortError') return; // Abbruch durch Nutzer
     alert('Auto-Sicherung konnte nicht eingerichtet werden: ' + (e && e.message));
@@ -1004,12 +1033,9 @@ function resumeAutoBackup(){
   fileHandle.requestPermission({mode:'readwrite'}).then(function(perm){
     if(perm !== 'granted'){ alert('Zugriff auf die Sicherungsdatei wurde nicht erlaubt.'); return; }
     autoBackupOn = true;
-    return mergeFromHandle(fileHandle).then(function(added){
-      save();
-      renderBackupUI();
-      checkBackupWarning();
-      renderVerlauf();
-      toast(added > 0 ? ('🔒 Auto-Sicherung fortgesetzt · ' + added + ' Eintrag(e) übernommen') : '🔒 Auto-Sicherung fortgesetzt');
+    return writeBackupNow().then(function(){
+      renderBackupUI(); checkBackupWarning(); renderVerlauf();
+      toast(autoBackupOn ? '🔒 Auto-Sicherung fortgesetzt' : 'Sicherungsdatei nicht lesbar.');
     });
   }).catch(function(e){ alert('Konnte Auto-Sicherung nicht fortsetzen: ' + (e && e.message)); });
 }
@@ -1075,11 +1101,8 @@ function initAutoBackup(){
     return h.queryPermission({mode:'readwrite'}).then(function(perm){
       if(perm === 'granted'){
         autoBackupOn = true;
-        return mergeFromHandle(h).then(function(added){
-          if(added > 0){ save(); renderVerlauf(); hsub(); }  // save() schreibt Datei + lokal
-          else { writeBackupNow(); }                          // Datei sicher auf aktuellen Stand bringen
-          renderBackupUI(); checkBackupWarning();
-        });
+        // Liest die Datei, holt fehlende Einträge zurück (Wipe-Recovery) und schreibt sicher.
+        return writeBackupNow().then(function(){ renderBackupUI(); checkBackupWarning(); });
       }
       autoBackupOn = false; // braucht Nutzergeste -> „Fortsetzen“
       renderBackupUI();
@@ -1087,22 +1110,13 @@ function initAutoBackup(){
   }).catch(function(){ renderBackupUI(); });
 }
 
-/* ============================ SEED (nur bei leerem Speicher) ============================ */
-var SEED = [
-  {id:'seed1',date:'2026-06-18',time:'09:30',type:'checkin',mood:3,cv:{episode:2,leidensdruck:3,anxiety:3,hopeless:3,energy:2,selfeff:2,selfimg:2,social:2,impuls:2,racing:2,concent:2,illness:2,past:3},note:'Schwerer Start in den Tag.'},
-  {id:'seed2',date:'2026-06-18',time:'21:00',type:'tagesdaten',nightSleep:6.5,napSleep:0,elv:'30 mg',elvTime:'08:30',lamo:'100 mg',bv:{eating:2,spending:3,screen:4,haushalt:3,selfcare:2},tags:['Gearbeitet','Arbeit stressig'],note:''},
-  {id:'seed3',date:'2026-06-19',time:'10:15',type:'checkin',mood:5,cv:{episode:3,leidensdruck:1,anxiety:2,hopeless:1,energy:4,selfeff:4,selfimg:4,social:3,impuls:1,racing:3,concent:4,illness:4,past:2},note:''},
-  {id:'seed4',date:'2026-06-20',time:'08:45',type:'checkin',mood:6,cv:{episode:4,leidensdruck:1,anxiety:1,energy:4,selfeff:4,selfimg:4,social:4,racing:4,concent:4,illness:4},note:'Sehr produktiv, gut geschlafen.'}
-];
-
 /* ============================ INIT ============================ */
+/* Kein automatisches Befüllen mit Demo-Daten: bei leerem Speicher bleibt die App leer.
+   So kann nach einem Speicher-Verlust nichts Falsches in die Sicherungsdatei geraten;
+   stattdessen werden die echten Einträge aus der Sicherungsdatei wiederhergestellt. */
 window.onload = function(){
   load();
   if(!storageAvailable()) showStorageWarn();
-  if(!loadFailed && entries.length === 0){
-    entries = SEED.map(function(s){ return migrateEntry(s); });
-    save();
-  }
   resetState();
   rebuildInputs();
   setMode('checkin');

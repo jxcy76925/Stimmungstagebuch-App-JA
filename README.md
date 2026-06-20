@@ -37,6 +37,10 @@ Gedacht zur Verlaufsdokumentation für die psychiatrische Behandlung
 - Defensive Speicherung: `navigator.storage.persist()` gegen automatisches Löschen;
   Warnungen statt stiller Datenverluste; bei beschädigten Daten wird automatisch eine
   Roh-Sicherungskopie behalten.
+- **Wipe-fest:** Eine automatische Sicherung liest die Datei zuerst und **vereinigt**
+  die Einträge – sie kann dadurch nie schrumpfen. Geht der Browser-Speicher verloren,
+  werden die Einträge beim nächsten Start **aus der Sicherungsdatei wiederhergestellt**.
+  Ist die Datei nicht lesbar, wird sie **nicht überschrieben** (Auto-Sicherung pausiert).
 
 ### Dauerhafte Speicherung – Empfehlung
 
@@ -49,8 +53,9 @@ Für eine zuverlässige Langzeit-Sammlung daher:
    Cloud-Ordner (z. B. Google Drive) legen. Damit ist jeder Eintrag automatisch redundant
    auf der Festplatte und – über die Cloud-Synchronisierung – auch auf anderen Geräten.
 
-> Hinweis: Die geräteübergreifende Zusammenführung vereinigt Einträge (per ID); gelöschte
-> Einträge werden bewusst nicht über Geräte hinweg entfernt, um Datenverlust zu vermeiden.
+> Hinweis: Die Zusammenführung vereinigt Einträge per ID (nichts geht verloren). Echte
+> Löschungen werden über „Tombstones“ festgehalten, damit sie bestehen bleiben und nicht
+> beim nächsten Zusammenführen wieder auftauchen.
 
 ## Daten & Datenschutz
 
