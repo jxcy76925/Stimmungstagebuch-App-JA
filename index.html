@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Stimmung">
+<title>Stimmungstagebuch</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg:#f3f8ee; --bg2:#e6f1e0; --surface:#fff; --surface2:#f7fbf4;
+  --border:#cfe3c8; --text:#2d4a28; --text2:#5a7a54; --text3:#8aaa84;
+  --green1:#4a9e5c; --green2:#6bbf7a; --amber:#d99a3a; --rose:#d4748a;
+  --lav:#9886c4; --sky:#5aa0bd; --warn:#cf8a4a; --r:16px; --rs:9px;
+}
+body { background:linear-gradient(180deg,#fdf6f9 0%,#f3f8ee 30%,#eef6e8 100%); background-attachment:fixed; color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; padding-bottom:100px; }
+.hills { position:fixed; bottom:0; left:0; right:0; width:100%; height:220px; pointer-events:none; z-index:0; opacity:0.35; }
+.wrap { position:relative; z-index:1; max-width:500px; margin:0 auto; }
+.hdr { background:linear-gradient(135deg,#5aaa6a,#4a9e5c); color:#fff; padding:20px 18px 16px; position:sticky; top:0; z-index:100; }
+.hdr h1 { font-size:19px; font-weight:700; }
+.hdr p { font-size:12px; opacity:.82; margin-top:2px; }
+.tabs { display:flex; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:68px; z-index:99; }
+.tab { flex:1; padding:11px 0; background:none; border:none; font-size:13px; font-weight:500; color:var(--text3); border-bottom:2px solid transparent; cursor:pointer; font-family:inherit; }
+.tab.on { color:var(--green1); border-bottom-color:var(--green1); font-weight:700; }
+.page { padding:16px; display:none; }
+.page.on { display:block; }
+.card { background:var(--surface); border-radius:var(--r); padding:16px; margin-bottom:14px; border:1px solid var(--border); }
+.lbl { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
+.sublbl { font-size:12px; font-weight:700; color:var(--text2); margin:16px 0 9px; }
+.hint { font-size:11px; color:var(--text3); margin-bottom:10px; font-style:italic; }
+.row2 { display:flex; gap:10px; }
+.row2>div { flex:1; }
+.row2 label, .fld label { font-size:11px; color:var(--text3); display:block; margin-bottom:4px; }
+.row2 input, .fld input { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:var(--rs); padding:9px 10px; font-size:14px; font-family:inherit; }
+.fld { margin-top:12px; max-width:220px; }
+.modes { display:flex; gap:8px; margin-bottom:8px; }
+.modehint { font-size:11px; color:var(--text3); text-align:center; margin:0 0 14px; font-style:italic; }
+.bkrow { display:flex; gap:8px; margin-bottom:14px; }
+.bkbtn { flex:1; padding:10px; border-radius:var(--rs); border:1.5px solid var(--lav); background:#f3effb; color:var(--lav); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+.mbtn { flex:1; padding:12px; border-radius:var(--rs); border:1.5px solid var(--border); background:var(--surface2); color:var(--text3); font-size:14px; font-weight:500; cursor:pointer; font-family:inherit; transition:all .15s; }
+.mbtn.on { border-color:var(--green1); background:#e8f5e8; color:var(--green1); font-weight:700; }
+.moods { display:flex; gap:5px; flex-wrap:wrap; }
+.mbtn2 { flex:1; min-width:58px; padding:9px 2px 7px; border-radius:10px; border:2px solid transparent; background:var(--surface2); cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; }
+.mbtn2 .em { font-size:20px; }
+.mbtn2 .tx { font-size:9px; color:var(--text3); text-align:center; line-height:1.2; }
+.mbtn2.on { background:#f0fff0; }
+.moodwarn { font-size:10px; color:var(--warn); margin-top:8px; text-align:center; }
+.srow { margin-bottom:16px; }
+.srow:last-child { margin-bottom:0; }
+.shdr { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:7px; gap:8px; }
+.sname { font-size:13px; font-weight:600; }
+.sval { font-size:11px; font-weight:600; max-width:140px; text-align:right; }
+.stip { font-size:10px; color:var(--text3); margin-top:1px; display:block; }
+.sdots { display:flex; gap:5px; }
+.sdot { flex:1; height:30px; border-radius:6px; border:none; cursor:pointer; background:var(--border); transition:background .1s; }
+.tgrid { display:flex; flex-wrap:wrap; gap:7px; }
+.tg { padding:8px 13px; border-radius:20px; font-size:12px; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text2); font-family:inherit; }
+.tg.on { background:#e8f5e8; border-color:var(--green1); color:var(--green1); font-weight:600; }
+.egrid { display:flex; gap:6px; flex-wrap:wrap; }
+.ebtn { padding:9px 13px; border-radius:20px; font-size:12px; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text2); font-family:inherit; }
+.ebtn.on { background:#eeeaf8; border-color:var(--lav); color:var(--lav); font-weight:600; }
+textarea { width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:var(--rs); padding:10px 12px; font-size:14px; resize:vertical; font-family:inherit; min-height:80px; }
+.sbtn { width:100%; background:linear-gradient(135deg,#5aaa6a,#4a9e5c); color:#fff; border:none; border-radius:var(--r); padding:15px; font-size:15px; font-weight:700; cursor:pointer; margin-top:4px; font-family:inherit; }
+.ok { text-align:center; padding:60px 20px; }
+.ok .ck { font-size:52px; }
+.ok p { color:var(--green1); font-weight:700; margin-top:12px; font-size:16px; }
+.ec { background:var(--surface); border-radius:var(--r); padding:14px; margin-bottom:10px; border:1px solid var(--border); border-left:4px solid var(--green2); }
+.et { display:flex; justify-content:space-between; align-items:flex-start; }
+.em2 { font-size:12px; color:var(--text3); margin-top:4px; }
+.ebadges { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.eb { font-size:11px; padding:3px 8px; border-radius:10px; background:var(--surface2); }
+.etags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.etag { font-size:11px; color:var(--text3); background:var(--bg2); border-radius:10px; padding:2px 8px; }
+.enote { font-size:13px; margin-top:8px; line-height:1.5; font-style:italic; }
+.dbtn { background:none; border:none; color:var(--text3); cursor:pointer; font-size:16px; padding:2px 6px; opacity:.5; }
+.dbtn:hover { opacity:1; color:var(--rose); }
+.xbtn { width:100%; background:var(--surface2); color:var(--text3); border:1px solid var(--border); border-radius:var(--r); padding:12px; font-size:13px; cursor:pointer; margin-top:14px; font-family:inherit; }
+.empty { text-align:center; padding:40px 20px; color:var(--text3); font-size:13px; }
+.cwrap { overflow-x:auto; }
+.cleg { display:flex; gap:12px; justify-content:center; margin-top:6px; flex-wrap:wrap; }
+.cleg span { font-size:11px; color:var(--text2); }
+.strow { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); gap:10px; }
+.strow:last-child { border-bottom:none; }
+.stlbl { font-size:13px; color:var(--text2); }
+.stval { font-size:14px; font-weight:700; white-space:nowrap; }
+.toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); background:var(--text); color:#fff; padding:11px 18px; border-radius:22px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:2000; max-width:90%; text-align:center; box-shadow:0 6px 20px rgba(45,74,40,.25); }
+.toast.show { opacity:.96; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<svg class="hills" viewBox="0 0 400 220" preserveAspectRatio="none">
+  <circle cx="320" cy="55" r="30" fill="#ffe9b8" opacity="0.7"/>
+  <circle cx="320" cy="55" r="42" fill="#ffe9b8" opacity="0.3"/>
+  <ellipse cx="90" cy="50" rx="34" ry="15" fill="#ffffff" opacity="0.55"/>
+  <ellipse cx="115" cy="45" rx="26" ry="13" fill="#ffffff" opacity="0.55"/>
+  <ellipse cx="210" cy="38" rx="28" ry="12" fill="#ffffff" opacity="0.45"/>
+  <ellipse cx="80" cy="260" rx="160" ry="120" fill="#b8ddb0"/>
+  <ellipse cx="260" cy="280" rx="200" ry="130" fill="#9ecf96"/>
+  <ellipse cx="380" cy="270" rx="130" ry="100" fill="#c0e3c8"/>
+  <ellipse cx="160" cy="300" rx="180" ry="110" fill="#c8e8c0"/>
+</svg>
+<div class="wrap">
+  <div class="hdr">
+    <h1>🌿 Stimmungstagebuch</h1>
+    <p id="hsub">Für deinen Psychiater · wird lokal gespeichert</p>
+  </div>
+  <div id="storage-status" style="display:none;padding:7px 16px;font-size:11px;font-weight:600;text-align:center;border-bottom:1px solid rgba(0,0,0,0.08)"></div>
+  <div class="tabs">
+    <button class="tab on" type="button" onclick="goTab('neu')">Eintragen</button>
+    <button class="tab" type="button" onclick="goTab('verlauf')">Verlauf</button>
+    <button class="tab" type="button" onclick="goTab('statistik')">Statistik</button>
+  </div>
+
+  <div class="page on" id="tab-neu">
+    <div id="ok-msg" class="ok" style="display:none"><div class="ck">✓</div><p id="ok-txt">Gespeichert!</p></div>
+    <div id="form">
+      <div class="modes">
+        <button class="mbtn on" id="m-checkin" type="button" onclick="setMode('checkin')">⚡ Check-In</button>
+        <button class="mbtn" id="m-tagesdaten" type="button" onclick="setMode('tagesdaten')">📋 Tagesdaten</button>
+      </div>
+      <p class="modehint" id="modehint"></p>
+
+      <div id="backup-warn" style="display:none;background:#fff3e0;border:1px solid #f0c896;border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#9a6a1a">
+        ⚠️ <span id="backup-warn-txt"></span>
+      </div>
+      <div class="bkrow">
+        <button class="bkbtn" type="button" onclick="backupData()">💾 Sichern</button>
+        <button class="bkbtn" type="button" onclick="document.getElementById('restore-file').click()">📂 Laden</button>
+        <input type="file" id="restore-file" accept=".json,application/json" style="display:none" onchange="restoreData(event)">
+      </div>
+
+      <div class="card">
+        <div class="row2">
+          <div><label>Datum</label><input type="date" id="edate"></div>
+          <div><label>Uhrzeit</label><input type="time" id="etime"></div>
+        </div>
+      </div>
+
+      <!-- ===== CHECK-IN ===== -->
+      <div class="card mode-checkin">
+        <div class="lbl">Gesamtstimmung</div>
+        <div class="moods" id="mood-btns"></div>
+        <p class="moodwarn">⚠️ „Euphorisch“ kann ein Frühzeichen für Hypomanie sein</p>
+      </div>
+      <div class="card mode-checkin">
+        <div class="lbl">Klinische Skalen</div>
+        <div class="hint">Nur ausfüllen was gerade relevant ist – nichts ist Pflicht.</div>
+        <div id="clin-scales"></div>
+      </div>
+
+      <!-- ===== TAGESDATEN ===== -->
+      <div class="card mode-tagesdaten" style="display:none">
+        <div class="lbl">Schlaf &amp; Medikamente</div>
+        <div class="row2">
+          <div><label>Nachtschlaf (Std.)</label><input type="number" id="night-sleep" min="0" max="24" step="0.5" inputmode="decimal" placeholder="z.B. 7"></div>
+          <div><label>Mittagsschlaf (Std.)</label><input type="number" id="nap-sleep" min="0" max="12" step="0.5" inputmode="decimal" placeholder="z.B. 0.5"></div>
+        </div>
+        <div class="sublbl">Elvanse heute</div>
+        <div class="egrid" id="elv-btns"></div>
+        <div class="fld"><label>Elvanse-Uhrzeit</label><input type="time" id="elv-time"></div>
+        <div class="sublbl">Lamotrigin heute</div>
+        <div class="egrid" id="lamo-btns"></div>
+      </div>
+      <div class="card mode-tagesdaten" style="display:none">
+        <div class="lbl">Verhalten &amp; Alltag</div>
+        <div id="behav-scales"></div>
+      </div>
+      <div class="card mode-tagesdaten" style="display:none">
+        <div class="lbl">Äußere Umstände</div>
+        <div class="hint">Nicht angehakt = nicht zutreffend.</div>
+        <div class="tgrid" id="tag-btns"></div>
+      </div>
+
+      <div class="card">
+        <div class="lbl">Notiz <span style="font-weight:400;color:var(--text3)">(optional)</span></div>
+        <textarea id="enote" placeholder="Was ist gerade auffällig?"></textarea>
+      </div>
+      <button class="sbtn" type="button" onclick="saveEntry()">Eintrag speichern</button>
+    </div>
+  </div>
+
+  <div class="page" id="tab-verlauf">
+    <div class="card cwrap">
+      <div class="lbl" style="margin-bottom:10px">Verlauf (letzte 21 Check-Ins)</div>
+      <svg id="chart" viewBox="0 0 340 130" style="width:100%"></svg>
+      <div class="cleg" id="cleg"></div>
+    </div>
+    <div id="elist"></div>
+    <button class="xbtn" type="button" onclick="doExport()">📄 CSV exportieren (für den Arzt)</button>
+  </div>
+
+  <div class="page" id="tab-statistik">
+    <div class="card"><div class="lbl">Auswertung</div><div id="stats"></div></div>
+    <div class="card"><div class="lbl">Häufige äußere Umstände</div><div id="tagstats"></div></div>
+    <button class="xbtn" type="button" onclick="doExport()">📄 CSV exportieren (für den Arzt)</button>
+  </div>
+
+  <div id="data-modal" style="display:none;position:fixed;inset:0;background:rgba(45,74,40,0.55);z-index:1000;padding:18px;overflow:auto">
+    <div style="max-width:500px;margin:30px auto;background:#fff;border-radius:16px;padding:18px">
+      <div style="font-size:15px;font-weight:700;color:#2d4a28;margin-bottom:6px" id="modal-title">Daten</div>
+      <div style="font-size:12px;color:#5a7a54;margin-bottom:10px" id="modal-hint"></div>
+      <textarea id="modal-text" readonly style="width:100%;height:260px;font:12px monospace;border:1px solid #cfe3c8;border-radius:9px;padding:10px;background:#f7fbf4;color:#2d4a28;resize:vertical"></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="button" onclick="copyModalText()" style="flex:1;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#5aaa6a,#4a9e5c);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">📋 Kopieren</button>
+        <button type="button" onclick="closeModal()" style="flex:1;padding:13px;border:1.5px solid #cfe3c8;border-radius:10px;background:#f7fbf4;color:#5a7a54;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Schließen</button>
+      </div>
+      <div id="copy-confirm" style="display:none;text-align:center;color:#4a9e5c;font-weight:700;font-size:13px;margin-top:10px">✓ Kopiert!</div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================ DATEN-DEFINITIONEN ============================ */
+var MOODS = [
+  {v:7,em:'🌟',lb:'Euphorisch',    cl:'#c07a30'},
+  {v:6,em:'😄',lb:'Sehr gut',      cl:'#4a9e5c'},
+  {v:5,em:'🙂',lb:'Gut',           cl:'#6bbf7a'},
+  {v:4,em:'😐',lb:'Okay',          cl:'#8aaa84'},
+  {v:3,em:'😔',lb:'Weniger gut',   cl:'#d4901a'},
+  {v:2,em:'😞',lb:'Schlecht',      cl:'#c07a30'},
+  {v:1,em:'😢',lb:'Sehr schlecht', cl:'#c0554a'}
+];
+
+/* Klinische Skalen – gehören ausschließlich zum Check-In (15 Skalen). */
+var CLIN = [
+  {id:'episode',      nm:'Episodenmarker',                          cl:'#9079c0', ds:['Depressiv','Eher depressiv','Gemischt / unklar','Eher gehoben','Hypoman / eindeutig gehoben ⚠️'], tp:'Subjektive Einschätzung der aktuellen Episode – wichtig für Bipolar-Verlauf'},
+  {id:'leidensdruck', nm:'Leidensdruck',                            cl:'#cf7a5a', ds:['Keiner','Gering','Mittel','Stark','Unerträglich'], tp:'Wie belastend ist der aktuelle Zustand subjektiv?'},
+  {id:'anxiety',      nm:'Hintergrundangst',                        cl:'#c07a30', ds:['Keine','Leicht','Mittel','Stark','Extrem/Panik'], tp:'Schwebendes Unwohlsein, innere Nervosität'},
+  {id:'melancholy',   nm:'Melancholie / Nostalgie',                 cl:'#7b6fa0', ds:['Keine','Leicht','Mittel','Stark','Tief versunken (z.B. traurige Musik)'], tp:'Schwelgen in Vergangenheit, Sehnsucht – auch scheinbar angenehme Melancholie beobachten'},
+  {id:'hopeless',     nm:'Hoffnungslosigkeit',                      cl:'#c0554a', ds:['Keine','Leicht','Mittel','Stark','Extrem – Todeswünsche'], tp:'Inkl. passive Todeswünsche'},
+  {id:'energy',       nm:'Körperliche Energie',                     cl:'#6bbf7a', ds:['Erschöpft','Sehr niedrig','Mittel','Hoch','Sehr hoch'], tp:'Rein körperliches Energieniveau'},
+  {id:'selfeff',      nm:'Selbstwirksamkeit',                       cl:'#4a8fa8', ds:['Komplett gelähmt','Sehr gering','Mittel','Gut','Voll handlungsfähig'], tp:'Fähigkeit Aufgaben umzusetzen (ADHS)'},
+  {id:'selfimg',      nm:'Selbstwahrnehmung',                       cl:'#6bbf7a', ds:['Stark negatives Selbstbild','Negativ','Neutral','Gesund positiv ✓','Übersteigert/grandios ⚠️'], tp:'Zielbereich ist „gesund positiv“ (4). Ganz oben (5) = mögliches Hypomanie-Zeichen'},
+  {id:'social',       nm:'Soziales Kontaktbedürfnis',              cl:'#7b6fa0', ds:['Starker Rückzug','Eher zurückgezogen','Ausgeglichen ✓','Kontaktfreudig','Übersteigert/getrieben ⚠️'], tp:'Zielbereich ist „ausgeglichen“ bis „kontaktfreudig“. Rückzug (unten) wie auch getrieben (oben) sind kritisch'},
+  {id:'impuls',       nm:'Impulsivität / Reizbarkeit',             cl:'#d4901a', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Unüberlegte Entscheidungen, Reizbarkeit, Wut'},
+  {id:'racing',       nm:'Gedanken',                                cl:'#4a8fa8', ds:['Stark verlangsamt','Langsam','Normal','Schnell/viele Ideen','Gedankenrasen ⚠️'], tp:'Verlangsamung bei Depression, Rasen bei Hypomanie'},
+  {id:'concent',      nm:'Konzentration',                           cl:'#4a9e5c', ds:['Keine','Sehr gering','Mittel','Gut','Sehr fokussiert'], tp:'Kognitive Klarheit (ADHS)'},
+  {id:'dereali',      nm:'Derealisation',                           cl:'#7b6fa0', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Gefühl der Unwirklichkeit'},
+  {id:'illness',      nm:'Gefühlte psychische Stabilität',          cl:'#5aa0bd', ds:['Akut krank / kritisch','Deutlich instabil','Neutral / leicht eingeschränkt','Stabil & gesund ✓','„Geheilt“/euphorisch gesund ⚠️'], tp:'Eigenes Empfinden – nicht die Diagnose. Hoch = gut; Zielbereich „stabil & gesund“ (4). Ganz oben (5) kann Hypomanie sein'},
+  {id:'past',         nm:'Verhaftung in Vergangenheit / Personen',  cl:'#d4748a', ds:['Ganz im Hier und Jetzt','Eher präsent','Teils grübelnd','Stark in der Vergangenheit','Komplett bei Ex-Personen / Grübeln'], tp:'Limerence / Favourite-Person-Bindung, Grübeln über Vergangenes (BPS)'}
+];
+
+/* Verhaltens-/Alltagsskalen – gehören ausschließlich zu Tagesdaten. */
+var BEHAV = [
+  {id:'eating',   nm:'Essverhalten',                cl:'#c07a30', ds:['Gar nicht gegessen','Sehr wenig','Normal/ausgewogen','Zu viel','Binge-Episode'], tp:'Binge Eating als klinischer Marker'},
+  {id:'spending', nm:'Ausgabeverhalten',            cl:'#7b6fa0', ds:['Gespart','Sparsam','Normal','Etwas mehr als geplant','Overspending ⚠️'], tp:'Impulsive Ausgaben als Hypomanie-Frühzeichen'},
+  {id:'screen',   nm:'Bildschirmzeit',              cl:'#4a8fa8', ds:['Nur das Nötigste','Wenig','Normal','Viel','Extrem viel – kaum in Realität'], tp:''},
+  {id:'haushalt', nm:'Haushalt & Alltagsaufgaben',  cl:'#6bbf7a', ds:['Alles schleifen lassen','Großer Rückstand','Das Nötigste','Gut im Griff','Alles auf Stand'], tp:'Gesamtzustand, nicht nur heute – ruhig nur eintragen wenn sich was ändert'},
+  {id:'selfcare', nm:'Selbstpflege & Maintenance',  cl:'#d4748a', ds:['Komplett vernachlässigt','Nur das Nötigste','Grundpflege ok','Gepflegt & dranbleibend','Top (inkl. Kosmetik/Extras)'], tp:'Gesamtzustand, nicht nur heute – ruhig nur eintragen wenn sich was ändert'}
+];
+
+var TAGS = [
+  'Gearbeitet','Frei gehabt','Sport / Fitness','In der Natur gewesen','Sozialer Kontakt',
+  'Konflikt / Streit','Arbeit stressig','Kleines Ziel erreicht','Mittleres Ziel erreicht',
+  'Großes Ziel erreicht','Alkohol','Periode'
+];
+var ELVANSE = ['Nicht genommen','20 mg','30 mg','40 mg','60 mg'];
+var LAMOTRIGIN = ['Nicht genommen','25 mg','50 mg','100 mg','150 mg','200 mg'];
+
+/* Chartlinien im Verlauf (basieren auf Check-In-Daten). */
+var CHART_LINES = [
+  {lb:'Stimmung',         cl:'#4a9e5c', mx:7, key:'mood'},
+  {lb:'Angst',            cl:'#c07a30', mx:5, key:'anxiety'},
+  {lb:'Hoffnungslosigkeit',cl:'#c0554a',mx:5, key:'hopeless'},
+  {lb:'Energie',          cl:'#6bbf7a', mx:5, key:'energy'},
+  {lb:'Selbstwirksamkeit',cl:'#4a8fa8', mx:5, key:'selfeff'}
+];
+
+var SK = 'pdiary_v5';
+
+/* ============================ ZUSTAND ============================ */
+var entries = [];
+var cv = {};      // aktuelle klinische Auswahl (Check-In)
+var bv = {};      // aktuelle Verhaltensauswahl (Tagesdaten)
+var selMood = null;
+var selTags = [];
+var selElv = null;
+var selLamo = null;
+var curMode = 'checkin';
+var loadFailed = false;
+
+/* ============================ HELFER ============================ */
+function el(id){ return document.getElementById(id); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function pad(n){ return (n<10?'0':'') + n; }
+function todayStr(d){ d = d || new Date(); return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+function timeStr(d){ d = d || new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function shortName(nm){ return nm.split('(')[0].trim(); }
+function fmtH(n){ return (Math.round(n*10)/10) + ' h'; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function numOrNull(v){
+  if(v===null || v===undefined || v==='') return null;
+  var n = parseFloat(String(v).replace(',','.'));
+  return isNaN(n) ? null : n;
+}
+function moodFor(v){ for(var i=0;i<MOODS.length;i++){ if(MOODS[i].v===v) return MOODS[i]; } return null; }
+function fmtDate(s){
+  var d = new Date(s + 'T12:00:00');
+  if(isNaN(d.getTime())) return s || '';
+  return d.toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'short'});
+}
+
+/* ============================ SPEICHERUNG ============================ */
+function storageAvailable(){
+  try { var x='__st__'; localStorage.setItem(x,x); localStorage.removeItem(x); return true; }
+  catch(e){ return false; }
+}
+
+function migrateEntry(e){
+  if(!e || typeof e !== 'object') return null;
+  var t = e.type;
+  if(t === 'quick') t = 'checkin';
+  else if(t === 'full') t = 'tagesdaten';
+  if(t !== 'checkin' && t !== 'tagesdaten'){
+    t = (e.mood != null || (e.cv && Object.keys(e.cv).length)) ? 'checkin' : 'tagesdaten';
+  }
+  var o = {
+    id: (e.id != null && e.id !== '') ? String(e.id) : uid(),
+    date: e.date || todayStr(),
+    time: e.time || '',
+    type: t,
+    note: (typeof e.note === 'string') ? e.note : ''
+  };
+  if(e.mood != null) o.mood = e.mood;
+  if(e.cv && typeof e.cv === 'object') o.cv = e.cv;
+  if(e.bv && typeof e.bv === 'object') o.bv = e.bv;
+  if(Array.isArray(e.tags)) o.tags = e.tags.slice();
+  if(e.elv) o.elv = e.elv;
+  if(e.elvTime || e.elv_time) o.elvTime = e.elvTime || e.elv_time;
+  if(e.lamo) o.lamo = e.lamo;
+  if(e.nightSleep != null) o.nightSleep = e.nightSleep;
+  if(e.napSleep != null) o.napSleep = e.napSleep;
+  return o;
+}
+
+function load(){
+  loadFailed = false;
+  entries = [];
+  if(!storageAvailable()){ return; }
+  var raw = localStorage.getItem(SK);
+  if(!raw){ return; }
+  try {
+    var parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) throw new Error('Unerwartetes Format');
+    for(var i=0;i<parsed.length;i++){
+      var m = migrateEntry(parsed[i]);
+      if(m) entries.push(m);
+    }
+  } catch(err){
+    // Niemals stillschweigend überschreiben: Rohdaten als Wiederherstellungskopie behalten.
+    loadFailed = true;
+    try { localStorage.setItem(SK + '_corrupt_' + Date.now(), raw); } catch(_){}
+    entries = [];
+    showStorageWarn('Gespeicherte Daten konnten nicht gelesen werden. Eine Roh-Sicherung wurde behalten – bitte ggf. ein Backup über „Laden“ wiederherstellen.');
+  }
+}
+
+function save(){
+  if(!storageAvailable()){ showStorageWarn(); return false; }
+  try {
+    localStorage.setItem(SK, JSON.stringify(entries));
+    showStorageOk();
+    return true;
+  } catch(e){
+    showStorageWarn('Speichern fehlgeschlagen (Speicher voll oder blockiert). Bitte sichere ein Backup.');
+    return false;
+  }
+}
+
+function showStorageWarn(msg){
+  var s = el('storage-status'); if(!s) return;
+  s.textContent = '⚠️ ' + (msg || 'Speichern nicht möglich – öffne diese Datei direkt in Chrome (file:// oder GitHub Pages), nicht eingebettet.');
+  s.style.background = '#fff3e0'; s.style.color = '#c45000'; s.style.display = 'block';
+}
+function showStorageOk(){
+  var s = el('storage-status'); if(!s) return;
+  s.textContent = '✓ Daten dauerhaft gespeichert';
+  s.style.background = '#e8f5e8'; s.style.color = '#2e7d32'; s.style.display = 'block';
+  setTimeout(function(){ if(s.textContent.indexOf('✓')===0) s.style.display='none'; }, 2200);
+}
+function toast(msg){
+  var t = el('toast'); if(!t) return;
+  t.textContent = msg; t.className = 'toast show';
+  clearTimeout(window._tt);
+  window._tt = setTimeout(function(){ t.className = 'toast'; }, 2400);
+}
+function hsub(){
+  el('hsub').textContent = entries.length + ' Einträge · für deinen Psychiater';
+}
+
+/* ============================ UI-AUFBAU ============================ */
+function buildMoods(){
+  var c = el('mood-btns'); c.innerHTML = '';
+  MOODS.forEach(function(m){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'mbtn2' + (selMood===m.v ? ' on' : '');
+    b.style.borderColor = (selMood===m.v) ? m.cl : 'transparent';
+    b.innerHTML = '<span class="em">'+m.em+'</span><span class="tx">'+esc(m.lb)+'</span>';
+    b.onclick = function(){ selMood = (selMood===m.v) ? null : m.v; buildMoods(); };
+    c.appendChild(b);
+  });
+}
+
+function buildScales(containerId, defs, stateObj){
+  var c = el(containerId); c.innerHTML = '';
+  defs.forEach(function(s){
+    var cur = stateObj[s.id];
+    var row = document.createElement('div'); row.className = 'srow';
+
+    var hdr = document.createElement('div'); hdr.className = 'shdr';
+    var left = document.createElement('div'); left.style.flex = '1';
+    var name = document.createElement('span'); name.className = 'sname'; name.style.color = s.cl; name.textContent = s.nm;
+    left.appendChild(name);
+    if(s.tp){ var tip = document.createElement('span'); tip.className = 'stip'; tip.textContent = s.tp; left.appendChild(tip); }
+    var val = document.createElement('span'); val.className = 'sval'; val.style.color = s.cl; val.id = 'sv-'+s.id;
+    val.textContent = (cur!=null) ? s.ds[cur-1] : '–';
+    hdr.appendChild(left); hdr.appendChild(val);
+
+    var dots = document.createElement('div'); dots.className = 'sdots'; dots.id = 'sd-'+s.id;
+    [1,2,3,4,5].forEach(function(j){
+      var d = document.createElement('button');
+      d.type = 'button'; d.className = 'sdot';
+      d.setAttribute('aria-label', s.nm + ' Stufe ' + j);
+      if(cur!=null && j<=cur) d.style.background = s.cl;
+      d.onclick = function(){ setScale(stateObj, s, j); };
+      dots.appendChild(d);
+    });
+
+    row.appendChild(hdr); row.appendChild(dots);
+    c.appendChild(row);
+  });
+}
+function setScale(stateObj, s, v){
+  stateObj[s.id] = (stateObj[s.id]===v) ? null : v;
+  paintScale(s, stateObj[s.id]);
+}
+function paintScale(s, v){
+  var sv = el('sv-'+s.id); if(sv) sv.textContent = (v!=null) ? s.ds[v-1] : '–';
+  var dc = el('sd-'+s.id);
+  if(dc){
+    var d = dc.children;
+    for(var k=0;k<d.length;k++){ d[k].style.background = (v!=null && (k+1)<=v) ? s.cl : ''; }
+  }
+}
+
+function buildTags(){
+  var c = el('tag-btns'); c.innerHTML = '';
+  TAGS.forEach(function(t){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tg' + (selTags.indexOf(t)>=0 ? ' on' : '');
+    b.textContent = t;
+    b.onclick = function(){
+      var i = selTags.indexOf(t);
+      if(i>=0) selTags.splice(i,1); else selTags.push(t);
+      b.className = 'tg' + (selTags.indexOf(t)>=0 ? ' on' : '');
+    };
+    c.appendChild(b);
+  });
+}
+
+function buildChoice(containerId, options, getSel, onPick){
+  var c = el(containerId); c.innerHTML = '';
+  options.forEach(function(opt){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ebtn' + (getSel()===opt ? ' on' : '');
+    b.textContent = opt;
+    b.onclick = function(){ onPick(getSel()===opt ? null : opt); };
+    c.appendChild(b);
+  });
+}
+function buildElv(){ buildChoice('elv-btns', ELVANSE, function(){return selElv;}, function(v){ selElv=v; buildElv(); }); }
+function buildLamo(){ buildChoice('lamo-btns', LAMOTRIGIN, function(){return selLamo;}, function(v){ selLamo=v; buildLamo(); }); }
+
+function rebuildInputs(){
+  buildMoods();
+  buildScales('clin-scales', CLIN, cv);
+  buildScales('behav-scales', BEHAV, bv);
+  buildTags();
+  buildElv();
+  buildLamo();
+}
+
+/* ============================ MODUS / RESET ============================ */
+function setMode(m){
+  curMode = m;
+  el('m-checkin').className = 'mbtn' + (m==='checkin' ? ' on' : '');
+  el('m-tagesdaten').className = 'mbtn' + (m==='tagesdaten' ? ' on' : '');
+  var ci = document.querySelectorAll('.mode-checkin');
+  var td = document.querySelectorAll('.mode-tagesdaten');
+  for(var i=0;i<ci.length;i++) ci[i].style.display = (m==='checkin') ? 'block' : 'none';
+  for(var j=0;j<td.length;j++) td[j].style.display = (m==='tagesdaten') ? 'block' : 'none';
+  el('modehint').textContent = (m==='checkin')
+    ? 'Momentaufnahme – mehrfach täglich möglich.'
+    : 'Tageszusammenfassung – Schlaf, Medikamente, Verhalten & Umstände.';
+}
+
+function resetState(){
+  selMood = null; selTags = []; selElv = null; selLamo = null;
+  CLIN.forEach(function(s){ cv[s.id] = null; });
+  BEHAV.forEach(function(s){ bv[s.id] = null; });
+  var now = new Date();
+  el('edate').value = todayStr(now);
+  el('etime').value = timeStr(now);
+  el('enote').value = '';
+  if(el('night-sleep')) el('night-sleep').value = '';
+  if(el('nap-sleep')) el('nap-sleep').value = '';
+  if(el('elv-time')) el('elv-time').value = '';
+}
+
+/* ============================ SPEICHERN ============================ */
+function collect(defs, stateObj){
+  var o = {};
+  defs.forEach(function(s){ if(stateObj[s.id]!=null) o[s.id] = stateObj[s.id]; });
+  return o;
+}
+
+function saveEntry(){
+  var date = el('edate').value;
+  var time = el('etime').value;
+  if(!date){ alert('Bitte ein Datum wählen.'); return; }
+
+  var e = { id: uid(), date: date, time: time, type: curMode, note: el('enote').value.trim() };
+
+  if(curMode === 'checkin'){
+    e.mood = selMood;
+    e.cv = collect(CLIN, cv);
+    if(e.mood==null && Object.keys(e.cv).length===0 && !e.note){
+      alert('Für einen Check-In bitte mindestens die Stimmung, eine Skala oder eine Notiz angeben.');
+      return;
+    }
+  } else {
+    e.nightSleep = numOrNull(el('night-sleep').value);
+    e.napSleep   = numOrNull(el('nap-sleep').value);
+    e.elv = selElv;
+    e.elvTime = el('elv-time').value || null;
+    e.lamo = selLamo;
+    e.bv = collect(BEHAV, bv);
+    e.tags = selTags.slice();
+    var empty = e.nightSleep==null && e.napSleep==null && !e.elv && !e.lamo && !e.elvTime &&
+                Object.keys(e.bv).length===0 && e.tags.length===0 && !e.note;
+    if(empty){ alert('Für Tagesdaten bitte mindestens ein Feld ausfüllen.'); return; }
+  }
+
+  entries.push(e);
+  var ok = save();
+  hsub();
+
+  el('form').style.display = 'none';
+  el('ok-txt').textContent = ok ? 'Gespeichert!' : 'Im Speicher abgelegt – bitte Backup sichern!';
+  el('ok-msg').style.display = 'block';
+  setTimeout(function(){
+    el('form').style.display = 'block';
+    el('ok-msg').style.display = 'none';
+    resetState();
+    rebuildInputs();
+    setMode(curMode);
+    checkBackupWarning();
+    goTab('verlauf');
+  }, 1100);
+}
+
+/* ============================ TABS ============================ */
+function goTab(name){
+  var names = ['neu','verlauf','statistik'];
+  var tabs = document.querySelectorAll('.tab');
+  var pages = document.querySelectorAll('.page');
+  names.forEach(function(n,i){
+    tabs[i].className = 'tab' + (n===name ? ' on' : '');
+    pages[i].className = 'page' + (n===name ? ' on' : '');
+  });
+  if(name==='verlauf') renderVerlauf();
+  if(name==='statistik') renderStats();
+}
+
+/* ============================ VERLAUF ============================ */
+function renderVerlauf(){
+  var sorted = entries.slice().sort(function(a,b){
+    return (b.date+(b.time||'')).localeCompare(a.date+(a.time||''));
+  });
+  var chartData = entries.filter(function(e){ return e.mood!=null; })
+    .sort(function(a,b){ return (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')); })
+    .slice(-21);
+  drawChart(chartData);
+
+  var box = el('elist');
+  if(!sorted.length){ box.innerHTML = '<div class="empty">Noch keine Einträge.</div>'; return; }
+  box.innerHTML = '';
+  sorted.forEach(function(e){ box.appendChild(entryCard(e)); });
+}
+
+function badgeEl(text, color){
+  var s = document.createElement('span'); s.className = 'eb';
+  if(color) s.style.color = color; s.textContent = text; return s;
+}
+function tagEl(text, color){
+  var s = document.createElement('span'); s.className = 'etag';
+  if(color) s.style.color = color; s.textContent = text; return s;
+}
+
+function entryCard(e){
+  var mo = moodFor(e.mood);
+  var card = document.createElement('div'); card.className = 'ec';
+  card.style.borderLeftColor = mo ? mo.cl : '#9886c4';
+
+  var head = document.createElement('div'); head.className = 'et';
+  var left = document.createElement('div');
+  var icon = document.createElement('span'); icon.style.fontSize = '20px';
+  var title = document.createElement('span'); title.style.fontWeight = '700'; title.style.marginLeft = '6px';
+  if(mo){ icon.textContent = mo.em; title.textContent = mo.lb; title.style.color = mo.cl; }
+  else if(e.type==='checkin'){ icon.textContent = '⚡'; title.textContent = 'Check-In'; title.style.color = 'var(--text2)'; }
+  else { icon.textContent = '📋'; title.textContent = 'Tagesdaten'; title.style.color = 'var(--text2)'; }
+  left.appendChild(icon); left.appendChild(title);
+  var tb = tagEl(e.type==='checkin' ? '⚡ Check-In' : '📋 Tagesdaten'); tb.style.marginLeft = '8px';
+  left.appendChild(tb);
+  var del = document.createElement('button'); del.className = 'dbtn'; del.type = 'button'; del.textContent = '✕';
+  del.onclick = function(){ delEntry(e.id); };
+  head.appendChild(left); head.appendChild(del);
+  card.appendChild(head);
+
+  var dt = document.createElement('div'); dt.className = 'em2';
+  dt.textContent = fmtDate(e.date) + ' · ' + (e.time||'');
+  card.appendChild(dt);
+
+  // Klinische Badges
+  var cb = document.createElement('div'); cb.className = 'ebadges';
+  CLIN.forEach(function(s){ if(e.cv && e.cv[s.id]!=null) cb.appendChild(badgeEl(shortName(s.nm)+' '+e.cv[s.id]+'/5', s.cl)); });
+  if(cb.children.length) card.appendChild(cb);
+
+  // Verhaltens-Badges
+  var bb = document.createElement('div'); bb.className = 'ebadges';
+  BEHAV.forEach(function(s){ if(e.bv && e.bv[s.id]!=null) bb.appendChild(badgeEl(s.nm+' '+e.bv[s.id]+'/5', s.cl)); });
+  if(bb.children.length) card.appendChild(bb);
+
+  // Schlaf-Tags
+  var sleepWrap = document.createElement('div'); sleepWrap.className = 'etags';
+  if(e.nightSleep!=null) sleepWrap.appendChild(tagEl('🌙 Nacht ' + fmtH(e.nightSleep)));
+  if(e.napSleep!=null && e.napSleep>0) sleepWrap.appendChild(tagEl('😴 Mittag ' + fmtH(e.napSleep)));
+  if(sleepWrap.children.length) card.appendChild(sleepWrap);
+
+  // Medikamente + äußere Umstände
+  var tagWrap = document.createElement('div'); tagWrap.className = 'etags';
+  if(e.elv) tagWrap.appendChild(tagEl('💊 Elvanse ' + e.elv + (e.elvTime ? (' · ' + e.elvTime) : ''), '#7b6fa0'));
+  if(e.lamo) tagWrap.appendChild(tagEl('💊 Lamotrigin ' + e.lamo, '#c07a30'));
+  (e.tags||[]).forEach(function(t){ tagWrap.appendChild(tagEl(t)); });
+  if(tagWrap.children.length) card.appendChild(tagWrap);
+
+  if(e.note){ var n = document.createElement('div'); n.className = 'enote'; n.textContent = e.note; card.appendChild(n); }
+  return card;
+}
+
+function delEntry(id){
+  if(!confirm('Eintrag löschen?')) return;
+  id = String(id);
+  entries = entries.filter(function(e){ return String(e.id) !== id; });
+  save(); hsub(); renderVerlauf();
+}
+
+function drawChart(data){
+  var svg = el('chart'); svg.innerHTML = '';
+  var leg = el('cleg'); leg.innerHTML = '';
+  if(data.length < 2){
+    svg.innerHTML = '<text x="170" y="65" text-anchor="middle" fill="#8aaa84" font-size="12">Mindestens 2 Check-Ins nötig</text>';
+    return;
+  }
+  var W=340,H=130,PX=20,PY=14,plotW=W-PX*2,plotH=H-PY*2;
+  var NS = 'http://www.w3.org/2000/svg';
+  for(var g=1;g<=5;g++){
+    var gy = PY + plotH - ((g-1)/4)*plotH;
+    var gl = document.createElementNS(NS,'line');
+    gl.setAttribute('x1',PX); gl.setAttribute('y1',gy); gl.setAttribute('x2',W-PX); gl.setAttribute('y2',gy);
+    gl.setAttribute('stroke','#c8dfc2'); gl.setAttribute('stroke-width','0.5');
+    svg.appendChild(gl);
+  }
+  CHART_LINES.forEach(function(l){
+    var pts = [];
+    for(var di=0; di<data.length; di++){
+      var v = (l.key==='mood') ? data[di].mood : (data[di].cv && data[di].cv[l.key]);
+      if(v) pts.push({ x: PX + (di/(data.length-1))*plotW, y: PY + plotH - ((v-1)/(l.mx-1))*plotH });
+    }
+    if(pts.length < 2) return;
+    var d=''; for(var pi=0; pi<pts.length; pi++) d += (pi===0?'M':'L') + pts[pi].x.toFixed(1) + ',' + pts[pi].y.toFixed(1) + ' ';
+    var path = document.createElementNS(NS,'path');
+    path.setAttribute('d',d); path.setAttribute('fill','none');
+    path.setAttribute('stroke',l.cl); path.setAttribute('stroke-width','1.8');
+    svg.appendChild(path);
+    for(var ci=0; ci<pts.length; ci++){
+      var c = document.createElementNS(NS,'circle');
+      c.setAttribute('cx',pts[ci].x); c.setAttribute('cy',pts[ci].y); c.setAttribute('r','3'); c.setAttribute('fill',l.cl);
+      svg.appendChild(c);
+    }
+    var sp = document.createElement('span');
+    sp.innerHTML = '<span style="color:'+l.cl+'">●</span> ' + esc(l.lb);
+    leg.appendChild(sp);
+  });
+}
+
+/* ============================ STATISTIK ============================ */
+function renderStats(){
+  var sc = el('stats'), tc = el('tagstats');
+  if(!entries.length){ sc.innerHTML = '<div class="empty">Noch keine Daten.</div>'; tc.innerHTML=''; return; }
+
+  function avg(arr){ if(!arr.length) return '–'; var s=0; for(var i=0;i<arr.length;i++) s+=arr[i]; return (s/arr.length).toFixed(1); }
+  function cvNums(k){ var v=[]; entries.forEach(function(e){ if(e.cv && typeof e.cv[k]==='number') v.push(e.cv[k]); }); return v; }
+  function bvNums(k){ var v=[]; entries.forEach(function(e){ if(e.bv && typeof e.bv[k]==='number') v.push(e.bv[k]); }); return v; }
+  function fieldNums(k){ var v=[]; entries.forEach(function(e){ if(typeof e[k]==='number') v.push(e[k]); }); return v; }
+
+  var moods = fieldNums('mood');
+  var moodSorted = entries.filter(function(e){ return e.mood!=null; })
+    .sort(function(a,b){ return (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')); });
+  var deltas = [];
+  for(var i=1;i<moodSorted.length;i++) deltas.push(Math.abs(moodSorted[i].mood - moodSorted[i-1].mood));
+
+  var rows = [];
+  rows.push(['Einträge gesamt', entries.length, '#4a9e5c']);
+  rows.push(['davon Check-Ins', entries.filter(function(e){return e.type==='checkin';}).length, '#8aaa84']);
+  rows.push(['davon Tagesdaten', entries.filter(function(e){return e.type==='tagesdaten';}).length, '#8aaa84']);
+  rows.push(['⌀ Stimmung (1–7)', avg(moods), '#4a9e5c']);
+  rows.push(['⌀ Stimmungsschwankung', avg(deltas), '#d4901a']);
+  CLIN.forEach(function(s){ rows.push(['⌀ ' + shortName(s.nm), avg(cvNums(s.id)), s.cl]); });
+  rows.push(['⌀ Nachtschlaf (Std.)', avg(fieldNums('nightSleep')), '#4a8fa8']);
+  rows.push(['⌀ Mittagsschlaf (Std.)', avg(fieldNums('napSleep')), '#4a8fa8']);
+  BEHAV.forEach(function(s){ rows.push(['⌀ ' + shortName(s.nm), avg(bvNums(s.id)), s.cl]); });
+
+  var html = '';
+  rows.forEach(function(r){
+    html += '<div class="strow"><span class="stlbl">'+esc(r[0])+'</span><span class="stval" style="color:'+r[2]+'">'+r[1]+'</span></div>';
+  });
+  sc.innerHTML = html;
+
+  var counts = {};
+  entries.forEach(function(e){ (e.tags||[]).forEach(function(t){ counts[t] = (counts[t]||0)+1; }); });
+  var top = Object.keys(counts).map(function(k){ return [k, counts[k]]; }).sort(function(a,b){ return b[1]-a[1]; }).slice(0,10);
+  var th = '';
+  top.forEach(function(t){
+    th += '<div class="strow"><span class="stlbl">'+esc(t[0])+'</span><span class="stval" style="color:#4a9e5c">'+t[1]+'×</span></div>';
+  });
+  tc.innerHTML = th || '<div class="empty">Keine Tags erfasst.</div>';
+}
+
+/* ============================ BACKUP / RESTORE ============================ */
+function getLastBackup(){ try { return localStorage.getItem(SK + '_lastbackup'); } catch(e){ return null; } }
+function setLastBackup(){ try { localStorage.setItem(SK + '_lastbackup', new Date().toISOString()); } catch(e){} }
+
+function checkBackupWarning(){
+  var warn = el('backup-warn'); var txt = el('backup-warn-txt');
+  if(!entries.length){ warn.style.display='none'; return; }
+  var last = getLastBackup();
+  if(!last){
+    txt.textContent = 'Du hast noch nie gesichert. Tippe auf „Sichern“, damit deine Einträge nicht verloren gehen.';
+    warn.style.display = 'block'; return;
+  }
+  var days = (Date.now() - new Date(last).getTime()) / 86400000;
+  if(days >= 3){
+    txt.textContent = 'Letzte Sicherung vor ' + Math.floor(days) + ' Tagen. Tippe auf „Sichern“, um auf Nummer sicher zu gehen.';
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+function downloadFile(filename, mime, text){
+  try {
+    var blob = new Blob([text], {type: mime});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+    return true;
+  } catch(e){ return false; }
+}
+
+function backupData(){
+  var payload = { app:'stimmungstagebuch', schema:SK, exported:new Date().toISOString(), count:entries.length, entries:entries };
+  var text = JSON.stringify(payload, null, 2);
+  var name = 'stimmungstagebuch-backup-' + todayStr() + '.json';
+  if(downloadFile(name, 'application/json', text)){
+    setLastBackup(); checkBackupWarning();
+    toast('💾 Backup gespeichert: ' + name);
+  } else {
+    window._modalIsBackup = true;
+    showDataModal('💾 Backup deiner Einträge',
+      'Tippe „Kopieren“ und sichere den Text (z.B. als .json-Datei oder in einer Mail an dich selbst). Zum Wiederherstellen nutzt du „Laden“.',
+      text);
+  }
+}
+
+function restoreData(event){
+  var file = event.target.files && event.target.files[0];
+  if(!file){ return; }
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try {
+      var data = JSON.parse(ev.target.result);
+      var incoming = Array.isArray(data) ? data : (data && data.entries);
+      if(!Array.isArray(incoming)){ alert('Diese Datei sieht nicht wie ein gültiges Backup aus.'); return; }
+      var existing = {};
+      entries.forEach(function(e){ existing[String(e.id)] = true; });
+      var added = 0, skipped = 0;
+      incoming.forEach(function(raw){
+        var m = migrateEntry(raw);
+        if(!m){ skipped++; return; }
+        if(existing[String(m.id)]){ skipped++; return; }
+        entries.push(m); existing[String(m.id)] = true; added++;
+      });
+      var ok = save(); hsub();
+      alert(added + ' Eintrag(e) geladen' + (skipped ? (', ' + skipped + ' übersprungen (Duplikate)') : '') +
+            '. Insgesamt jetzt ' + entries.length + ' Einträge.' + (ok ? '' : '\n⚠️ Konnte nicht dauerhaft gespeichert werden.'));
+      goTab('verlauf');
+    } catch(err){
+      alert('Die Datei konnte nicht gelesen werden: ' + err.message);
+    }
+  };
+  reader.onerror = function(){ alert('Die Datei konnte nicht gelesen werden.'); };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+/* ============================ EXPORT (CSV) ============================ */
+function csv(v){
+  v = (v==null) ? '' : String(v);
+  return /[",\n\r;]/.test(v) ? ('"' + v.replace(/"/g,'""') + '"') : v;
+}
+function doExport(){
+  var hdr = ['Datum','Uhrzeit','Typ','Stimmung(1-7)','Stimmung Label'];
+  CLIN.forEach(function(s){ hdr.push(s.nm); });
+  hdr.push('Nachtschlaf(Std)','Mittagsschlaf(Std)','Elvanse','Elvanse-Uhrzeit','Lamotrigin');
+  BEHAV.forEach(function(s){ hdr.push(s.nm); });
+  hdr.push('Tags','Notiz');
+
+  var lines = [hdr.map(csv).join(',')];
+  var srt = entries.slice().sort(function(a,b){ return (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')); });
+  srt.forEach(function(e){
+    var mo = moodFor(e.mood);
+    var row = [e.date, e.time||'', e.type==='checkin' ? 'Check-In' : 'Tagesdaten', e.mood!=null ? e.mood : '', mo ? mo.lb : ''];
+    CLIN.forEach(function(s){ row.push(e.cv && e.cv[s.id]!=null ? e.cv[s.id] : ''); });
+    row.push(e.nightSleep!=null ? e.nightSleep : '', e.napSleep!=null ? e.napSleep : '', e.elv||'', e.elvTime||'', e.lamo||'');
+    BEHAV.forEach(function(s){ row.push(e.bv && e.bv[s.id]!=null ? e.bv[s.id] : ''); });
+    row.push((e.tags||[]).join('; '), e.note||'');
+    lines.push(row.map(csv).join(','));
+  });
+  var text = lines.join('\r\n');
+  var name = 'stimmungstagebuch-export-' + todayStr() + '.csv';
+  if(downloadFile(name, 'text/csv;charset=utf-8', '﻿' + text)){
+    toast('📄 CSV exportiert: ' + name);
+  } else {
+    window._modalIsBackup = false;
+    showDataModal('📄 CSV für deinen Arzt',
+      'Tippe „Kopieren“ und füge den Text in eine Mail oder Tabellen-App (Numbers/Excel) ein. Dort als CSV speichern.',
+      text);
+  }
+}
+
+/* ============================ MODAL (Fallback) ============================ */
+function showDataModal(title, hint, text){
+  el('modal-title').textContent = title;
+  el('modal-hint').textContent = hint;
+  el('modal-text').value = text;
+  el('copy-confirm').style.display = 'none';
+  el('data-modal').style.display = 'block';
+}
+function closeModal(){ el('data-modal').style.display = 'none'; }
+function copyModalText(){
+  var ta = el('modal-text');
+  var ok = false;
+  try { ta.focus(); ta.setSelectionRange(0, ta.value.length); ok = document.execCommand('copy'); } catch(e){}
+  if(ok){ el('copy-confirm').style.display = 'block'; }
+  else if(navigator.clipboard){
+    navigator.clipboard.writeText(ta.value).then(function(){ el('copy-confirm').style.display = 'block'; }).catch(function(){});
+  }
+  if(window._modalIsBackup){ setLastBackup(); checkBackupWarning(); }
+}
+
+/* ============================ SEED (nur bei leerem Speicher) ============================ */
+var SEED = [
+  {id:'seed1',date:'2026-06-18',time:'09:30',type:'checkin',mood:3,cv:{episode:2,leidensdruck:3,anxiety:3,hopeless:3,energy:2,selfeff:2,selfimg:2,social:2,impuls:2,racing:2,concent:2,illness:2,past:3},note:'Schwerer Start in den Tag.'},
+  {id:'seed2',date:'2026-06-18',time:'21:00',type:'tagesdaten',nightSleep:6.5,napSleep:0,elv:'30 mg',elvTime:'08:30',lamo:'100 mg',bv:{eating:2,spending:3,screen:4,haushalt:3,selfcare:2},tags:['Gearbeitet','Arbeit stressig'],note:''},
+  {id:'seed3',date:'2026-06-19',time:'10:15',type:'checkin',mood:5,cv:{episode:3,leidensdruck:1,anxiety:2,hopeless:1,energy:4,selfeff:4,selfimg:4,social:3,impuls:1,racing:3,concent:4,illness:4,past:2},note:''},
+  {id:'seed4',date:'2026-06-20',time:'08:45',type:'checkin',mood:6,cv:{episode:4,leidensdruck:1,anxiety:1,energy:4,selfeff:4,selfimg:4,social:4,racing:4,concent:4,illness:4},note:'Sehr produktiv, gut geschlafen.'}
+];
+
+/* ============================ INIT ============================ */
+window.onload = function(){
+  load();
+  if(!storageAvailable()) showStorageWarn();
+  if(!loadFailed && entries.length === 0){
+    entries = SEED.map(function(s){ return migrateEntry(s); });
+    save();
+  }
+  resetState();
+  rebuildInputs();
+  setMode('checkin');
+  hsub();
+  checkBackupWarning();
+};
+</script>
+</body>
+</html>
