@@ -965,7 +965,7 @@ function writeBackupNow(){
       return w.write(backupPayload()).then(function(){ return w.close(); });
     }).then(function(){
       setLastBackup();
-      setAutoMsg('🔒 Auto-Sicherung gespeichert');
+      setAutoMsg('✓ Automatisch gesichert · ' + timeStr() + ' Uhr · ' + entries.length + ' Einträge');
     });
   }).catch(function(){
     autoBackupOn = false; renderBackupUI();
@@ -1076,7 +1076,8 @@ function initAutoBackup(){
       if(perm === 'granted'){
         autoBackupOn = true;
         return mergeFromHandle(h).then(function(added){
-          if(added > 0){ save(); renderVerlauf(); hsub(); }
+          if(added > 0){ save(); renderVerlauf(); hsub(); }  // save() schreibt Datei + lokal
+          else { writeBackupNow(); }                          // Datei sicher auf aktuellen Stand bringen
           renderBackupUI(); checkBackupWarning();
         });
       }
