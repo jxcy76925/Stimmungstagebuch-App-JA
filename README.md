@@ -28,37 +28,46 @@ Gedacht zur Verlaufsdokumentation für die psychiatrische Behandlung
 - Verhaltens-/Alltagsskalen, äußere Umstände (Tags), Medikamenten- und Schlaferfassung
 - **Verlauf** mit Diagramm und Einzeleinträgen
 - **Statistik** (Durchschnitte, Schwankungen, häufige Tags)
-- **Automatische Datei-Sicherung** (Chrome/Edge Desktop & Chromebook): einmal eine
-  `.json`-Datei wählen – danach wird jeder Eintrag automatisch dort gespeichert.
-  Datei in einen Google-Drive-/Dropbox-Ordner legen → übersteht Cache-Löschung und
-  Gerätewechsel. Beim Verbinden werden vorhandene Einträge duplikatfrei zusammengeführt.
-- **Backup** als `.json`-Download und **Wiederherstellen** per Datei-Import (Merge ohne Duplikate)
+- **Sichern**: manueller `.json`-Export des kompletten lokalen Standes
+- **Laden**: manueller Import per Dateiauswahl – unterstützt **JSON** (App-Backup) **und CSV**
+  (z. B. aus Google Sheets exportiert). Rein lokal, ergänzt/­stellt Einträge wieder her.
 - **CSV-Export** für den Arzt
+- **Google Sheets (optional, append-only):** jeder neue Eintrag wird zusätzlich als eine
+  Zeile an ein Google Sheet angehängt – siehe unten.
 - Defensive Speicherung: `navigator.storage.persist()` gegen automatisches Löschen;
   Warnungen statt stiller Datenverluste; bei beschädigten Daten wird automatisch eine
   Roh-Sicherungskopie behalten.
-- **Wipe-fest:** Eine automatische Sicherung liest die Datei zuerst und **vereinigt**
-  die Einträge – sie kann dadurch nie schrumpfen. Geht der Browser-Speicher verloren,
-  werden die Einträge beim nächsten Start **aus der Sicherungsdatei wiederhergestellt**.
-  Ist die Datei nicht lesbar, wird sie **nicht überschrieben** (Auto-Sicherung pausiert).
 
-### Dauerhafte Speicherung – Empfehlung
+## Speicher-Architektur
 
-Die Daten liegen primär im `localStorage` des Browsers (gebunden an **eine** Adresse/Origin).
-Für eine zuverlässige Langzeit-Sammlung daher:
+- **Primär:** lokal im Browser (`localStorage`). Verlauf, Statistik und Graphen rechnen
+  immer auf diesen lokalen Daten.
+- **Manuell:** `Sichern` (JSON-Datei) / `Laden` (JSON **oder** CSV). Sicherung und
+  Wiederherstellung passieren ausschließlich, wenn du sie bewusst auslöst.
+- **Google Sheets** ist ein reines **append-only-Protokoll** der abgeschickten Einträge –
+  *nicht* die Primärquelle, *kein* Rück-Sync, *kein* automatischer Restore.
 
-1. Immer dieselbe **GitHub-Pages-URL (https)** nutzen (stabiler, sicherer Kontext) – nicht
-   mal `file://` und mal `https://`, da das getrennte Speicher sind.
-2. Einmal **„Auto-Sicherung einrichten"** und die Zieldatei in einen synchronisierten
-   Cloud-Ordner (z. B. Google Drive) legen. Damit ist jeder Eintrag automatisch redundant
-   auf der Festplatte und – über die Cloud-Synchronisierung – auch auf anderen Geräten.
+### Google Sheets anbinden (append-only)
 
-> Hinweis: Die Zusammenführung vereinigt Einträge per ID (nichts geht verloren). Echte
-> Löschungen werden über „Tombstones“ festgehalten, damit sie bestehen bleiben und nicht
-> beim nächsten Zusammenführen wieder auftauchen.
+Eine statische Web-App kann nicht direkt in Sheets schreiben – der saubere, sichere Weg
+ist ein winziges **Google Apps Script** als Web-App-Endpoint. Code & Anleitung:
+[`apps-script/Code.gs`](apps-script/Code.gs).
+
+1. Neues, leeres **Google Sheet** anlegen → *Erweiterungen → Apps Script*.
+2. Inhalt von `apps-script/Code.gs` einfügen, speichern.
+3. *Bereitstellen → Neue Bereitstellung → Web-App*, **Ausführen als: Ich**,
+   **Zugriff: Jeder**. URL (endet auf `/exec`) kopieren.
+4. In der App **„Google Sheets verbinden"** tippen und die URL einfügen.
+
+Danach erzeugt **jeder Klick auf „Eintrag speichern" genau eine neue Zeile** im passenden
+Blatt (`Check-In` bzw. `Tagesdaten`, deutsche Spaltenüberschriften werden automatisch
+angelegt). Schlägt eine Sendung fehl, bleibt der Eintrag in einer lokalen **Outbox** und
+wird später erneut angehängt. Bestehende Sheet-Zeilen werden **nie** gelesen-um-zu-ändern,
+geändert oder gelöscht – auch lokales Löschen wirkt sich nicht auf Sheets aus.
 
 ## Daten & Datenschutz
 
-Alle Einträge werden ausschließlich lokal im Browser gespeichert. Es werden keine
-Daten an Server gesendet. Für eine Sicherung bitte regelmäßig **„Sichern“** nutzen –
-gelöschte Browser-Daten löschen auch die Einträge.
+Einträge werden lokal im Browser gespeichert. Ohne konfigurierte Google-Sheets-URL werden
+**keine** Daten an einen Server gesendet. Mit verbundenem Sheet wird jeder neue Eintrag
+zusätzlich an dein eigenes Google Sheet angehängt. Für eine Sicherung regelmäßig
+**„Sichern"** nutzen – gelöschte Browser-Daten löschen auch die lokalen Einträge.

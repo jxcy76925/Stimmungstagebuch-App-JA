@@ -87,12 +87,12 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
 .stval { font-size:14px; font-weight:700; white-space:nowrap; }
 .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); background:var(--text); color:#fff; padding:11px 18px; border-radius:22px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:2000; max-width:90%; text-align:center; box-shadow:0 6px 20px rgba(45,74,40,.25); }
 .toast.show { opacity:.96; transform:translateX(-50%) translateY(0); }
-.autobox { border:1px solid var(--border); background:var(--surface2); border-radius:var(--rs); padding:11px 13px; margin-bottom:12px; font-size:12px; color:var(--text2); line-height:1.5; }
-.autobox.on { border-color:#86c48a; background:#eef8ee; }
-.autobox b { color:var(--text); }
-.autobox .arow { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
-.autobox button { padding:8px 13px; border-radius:8px; border:1.5px solid var(--lav); background:#f3effb; color:var(--lav); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
-.autobox button.ghost { border-color:var(--border); background:var(--surface); color:var(--text3); }
+.sheetsbox { border:1px solid var(--border); background:var(--surface2); border-radius:var(--rs); padding:11px 13px; margin-bottom:12px; font-size:12px; color:var(--text2); line-height:1.5; }
+.sheetsbox.on { border-color:#86c48a; background:#eef8ee; }
+.sheetsbox b { color:var(--text); }
+.sheetsbox .arow { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
+.sheetsbox button { padding:8px 13px; border-radius:8px; border:1.5px solid var(--lav); background:#f3effb; color:var(--lav); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+.sheetsbox button.ghost { border-color:var(--border); background:var(--surface); color:var(--text3); }
 </style>
 </head>
 <body>
@@ -131,11 +131,11 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
       <div id="backup-warn" style="display:none;background:#fff3e0;border:1px solid #f0c896;border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#9a6a1a">
         ⚠️ <span id="backup-warn-txt"></span>
       </div>
-      <div id="auto-status" class="autobox" style="display:none"></div>
+      <div id="sheets-box" class="sheetsbox" style="display:none"></div>
       <div class="bkrow">
         <button class="bkbtn" type="button" onclick="backupData()">💾 Sichern</button>
         <button class="bkbtn" type="button" onclick="document.getElementById('restore-file').click()">📂 Laden</button>
-        <input type="file" id="restore-file" accept=".json,application/json" style="display:none" onchange="restoreData(event)">
+        <input type="file" id="restore-file" accept=".json,.csv,application/json,text/csv" style="display:none" onchange="restoreData(event)">
       </div>
 
       <div class="card">
@@ -293,11 +293,9 @@ var curMode = 'checkin';
 var loadFailed = false;
 var deleted = {};          // gelöschte Einträge (id -> true): verhindert Wiederauferstehen beim Zusammenführen
 
-/* Auto-Sicherung in eine echte Datei (File System Access API) */
-var fileHandle = null;     // FileSystemFileHandle der Sicherungsdatei
-var autoBackupOn = false;  // aktiv (Handle vorhanden + Schreibrechte erteilt)
-var _abWriting = false;    // Schreibvorgang läuft
-var _abDirty = false;      // während des Schreibens kam neue Änderung
+/* Google Sheets (append-only Journal) */
+var _lastSheetsMsg = '';   // letzte sichtbare Sheets-Statusmeldung
+var _flushing = false;     // Outbox-Versand läuft gerade
 
 /* ============================ HELFER ============================ */
 function el(id){ return document.getElementById(id); }
@@ -393,7 +391,7 @@ function persistLocal(){
 function save(){
   if(!storageAvailable()){ showStorageWarn(); return false; }
   var ok = persistLocal();
-  if(ok){ showStorageOk(); scheduleAutoBackup(); }
+  if(ok){ showStorageOk(); }
   return ok;
 }
 
@@ -577,6 +575,7 @@ function saveEntry(){
   entries.push(e);
   var ok = save();
   hsub();
+  sheetsAppend(e);   // zusätzlich append-only an Google Sheets (nur bei neuem Eintrag, nie bei Löschen/Import)
 
   el('form').style.display = 'none';
   el('ok-txt').textContent = ok ? 'Gespeichert!' : 'Im Speicher abgelegt – bitte Backup sichern!';
@@ -777,7 +776,6 @@ function setLastBackup(){ try { localStorage.setItem(SK + '_lastbackup', new Dat
 
 function checkBackupWarning(){
   var warn = el('backup-warn'); var txt = el('backup-warn-txt');
-  if(autoBackupOn){ warn.style.display='none'; return; }
   if(!entries.length){ warn.style.display='none'; return; }
   var last = getLastBackup();
   if(!last){
@@ -806,8 +804,7 @@ function downloadFile(filename, mime, text){
 }
 
 function backupData(){
-  var payload = { app:'stimmungstagebuch', schema:SK, exported:new Date().toISOString(), count:entries.length, entries:entries };
-  var text = JSON.stringify(payload, null, 2);
+  var text = backupPayload();   // vollständiger Stand: alle Einträge + Tombstones
   var name = 'stimmungstagebuch-backup-' + todayStr() + '.json';
   if(downloadFile(name, 'application/json', text)){
     setLastBackup(); checkBackupWarning();
@@ -820,24 +817,43 @@ function backupData(){
   }
 }
 
+/* Manueller Import – unterstützt JSON-Backups dieser App UND CSV (z.B. aus Google
+   Sheets exportiert). Rein lokal: ergänzt/­stellt Einträge wieder her, schreibt nie
+   zurück nach Google Sheets. Format wird automatisch erkannt. */
 function restoreData(event){
   var file = event.target.files && event.target.files[0];
   if(!file){ return; }
   var reader = new FileReader();
   reader.onload = function(ev){
+    var text = String(ev.target.result || '');
+    var trimmed = text.replace(/^﻿/, '').replace(/^\s+/, '');
+    var looksJson = (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '[');
+    var res = null, mode = '';
     try {
-      var data = JSON.parse(ev.target.result);
-      var incoming = Array.isArray(data) ? data : (data && data.entries);
-      var incDeleted = (data && data.deleted) || [];
-      if(!Array.isArray(incoming)){ alert('Diese Datei sieht nicht wie ein gültiges Backup aus.'); return; }
-      var added = mergeData(incoming, incDeleted);
-      var ok = save(); hsub();
-      alert(added + ' neue(r) Eintrag(e) geladen. Insgesamt jetzt ' + entries.length + ' Einträge.' +
-            (ok ? '' : '\n⚠️ Konnte nicht dauerhaft gespeichert werden.'));
-      goTab('verlauf');
+      if(looksJson){
+        mode = 'JSON';
+        var data = JSON.parse(trimmed);
+        var incoming = Array.isArray(data) ? data : (data && data.entries);
+        var incDeleted = (data && data.deleted) || [];
+        if(!Array.isArray(incoming)) throw new Error('kein Eintrags-Array gefunden');
+        res = { added: mergeData(incoming, incDeleted), skipped: 0 };
+      } else {
+        mode = 'CSV';
+        var parsed = csvToEntries(text);
+        if(!parsed.entries.length) throw new Error('keine gültigen Datenzeilen erkannt');
+        res = { added: mergeData(parsed.entries, []), skipped: parsed.skipped };
+      }
     } catch(err){
-      alert('Die Datei konnte nicht gelesen werden: ' + err.message);
+      alert('Import fehlgeschlagen (' + mode + '): ' + err.message +
+            '\n\nUnterstützt werden JSON-Backups dieser App und CSV-Dateien (z.B. aus Google Sheets) mit den deutschen Spaltenüberschriften.');
+      return;
     }
+    var ok = save(); hsub();
+    alert('Import (' + mode + '): ' + res.added + ' neue(r) Eintrag/Einträge' +
+          (res.skipped ? (', ' + res.skipped + ' Zeile(n) übersprungen') : '') +
+          '. Insgesamt jetzt ' + entries.length + '.' +
+          (ok ? '' : '\n⚠️ Konnte nicht dauerhaft gespeichert werden.'));
+    goTab('verlauf');
   };
   reader.onerror = function(){ alert('Die Datei konnte nicht gelesen werden.'); };
   reader.readAsText(file);
@@ -899,41 +915,7 @@ function copyModalText(){
   if(window._modalIsBackup){ setLastBackup(); checkBackupWarning(); }
 }
 
-/* ============================ AUTO-SICHERUNG IN DATEI ============================ */
-/* Speichert nach jedem Eintrag automatisch in eine echte .json-Datei (File System
-   Access API). Datei z.B. in einen Google-Drive-/Dropbox-Ordner legen -> übersteht
-   Cache-Löschung und Gerätewechsel. Nur Chrome/Edge Desktop & Chromebook. */
-
-function fsSupported(){ return typeof window.showSaveFilePicker === 'function'; }
-
-/* --- IndexedDB: Datei-Handle dauerhaft merken (localStorage kann das nicht) --- */
-function idbOpen(){
-  return new Promise(function(res,rej){
-    var r = indexedDB.open('pdiary_fs', 1);
-    r.onupgradeneeded = function(){ r.result.createObjectStore('kv'); };
-    r.onsuccess = function(){ res(r.result); };
-    r.onerror = function(){ rej(r.error); };
-  });
-}
-function idbSet(key,val){
-  return idbOpen().then(function(db){ return new Promise(function(res,rej){
-    var tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(val,key);
-    tx.oncomplete = function(){ res(); }; tx.onerror = function(){ rej(tx.error); };
-  }); });
-}
-function idbGet(key){
-  return idbOpen().then(function(db){ return new Promise(function(res,rej){
-    var tx = db.transaction('kv','readonly'); var rq = tx.objectStore('kv').get(key);
-    rq.onsuccess = function(){ res(rq.result); }; rq.onerror = function(){ rej(rq.error); };
-  }); });
-}
-function idbDel(key){
-  return idbOpen().then(function(db){ return new Promise(function(res,rej){
-    var tx = db.transaction('kv','readwrite'); tx.objectStore('kv').delete(key);
-    tx.oncomplete = function(){ res(); }; tx.onerror = function(){ rej(tx.error); };
-  }); });
-}
-
+/* ============================ BACKUP-PAYLOAD / MERGE ============================ */
 function backupPayload(){
   return JSON.stringify({
     app:'stimmungstagebuch', schema:SK, exported:new Date().toISOString(),
@@ -962,123 +944,237 @@ function mergeData(incomingEntries, incomingDeleted){
   return added;
 }
 
-function scheduleAutoBackup(){
-  if(!autoBackupOn || !fileHandle) return;
-  if(_abWriting){ _abDirty = true; return; }
-  writeBackupNow();
+/* ============================ GOOGLE SHEETS (append-only Journal) ============================ */
+/* Bei jedem „Eintrag speichern“ wird der Eintrag zusätzlich als EINE neue Zeile an ein
+   Google Sheet angehängt – über ein Google-Apps-Script-Web-App (URL über „Verbinden“).
+   Strikt append-only: kein Lesen/Ändern/Löschen, kein Rück-Sync, kein Merge aus Sheets.
+   Bei Sendefehlern landet der Eintrag in einer lokalen Outbox und wird später erneut
+   angehängt (Duplikate sind laut Vorgabe erlaubt). Apps-Script: siehe apps-script/Code.gs */
+
+/* Sichtbare deutsche Spaltenüberschriften (entsprechen den beiden Sheet-Blättern). */
+var CHECKIN_COLS = ['Eintrags-ID','Datum','Uhrzeit','Typ','Notiz','Gesamtstimmung']
+  .concat(CLIN.map(function(s){ return s.nm; }));
+var TAGESDATEN_COLS = ['Eintrags-ID','Datum','Uhrzeit','Typ','Notiz','Nachtschlaf Std.','Mittagsschlaf Std.','Elvanse heute','Elvanse-Uhrzeit','Lamotrigin heute']
+  .concat(BEHAV.map(function(s){ return s.nm; }))
+  .concat(['Äußere Umstände']);
+
+var SHEETS_URL_KEY = SK + '_sheets_url';
+var OUTBOX_KEY     = SK + '_sheets_outbox';
+
+function getSheetsUrl(){ try { return localStorage.getItem(SHEETS_URL_KEY) || ''; } catch(e){ return ''; } }
+function setSheetsUrl(u){ try { if(u) localStorage.setItem(SHEETS_URL_KEY, u); else localStorage.removeItem(SHEETS_URL_KEY); } catch(e){} }
+
+/* Eintrag -> Zeilen-Payload für das passende Blatt (Werte in Spaltenreihenfolge). */
+function sheetRowFor(e){
+  if(e.type === 'checkin'){
+    var v = [e.id, e.date||'', e.time||'', 'Check-In', e.note||'', e.mood!=null ? e.mood : ''];
+    CLIN.forEach(function(s){ v.push(e.cv && e.cv[s.id]!=null ? e.cv[s.id] : ''); });
+    return { sheet:'Check-In', headers:CHECKIN_COLS, values:v };
+  }
+  var w = [e.id, e.date||'', e.time||'', 'Tagesdaten', e.note||'',
+           e.nightSleep!=null ? e.nightSleep : '', e.napSleep!=null ? e.napSleep : '',
+           e.elv||'', e.elvTime||'', e.lamo||''];
+  BEHAV.forEach(function(s){ w.push(e.bv && e.bv[s.id]!=null ? e.bv[s.id] : ''); });
+  w.push((e.tags||[]).join(', '));
+  return { sheet:'Tagesdaten', headers:TAGESDATEN_COLS, values:w };
 }
-/* Sicherer Schreibvorgang:
-   1. Datei ERST lesen und fehlende Einträge zurückholen (Union) -> die Datei kann
-      durch eine automatische Sicherung NIE schrumpfen. Selbst wenn der Browser-
-      speicher gelöscht wurde, werden die Einträge aus der Datei wiederhergestellt.
-   2. Lässt sich die Datei nicht lesen/parsen, wird NICHT überschrieben (pausiert),
-      damit ein Lesefehler keinen Datenverlust in die Datei schreiben kann. */
-function writeBackupNow(){
-  if(!fileHandle){ return Promise.resolve(); }
-  _abWriting = true; _abDirty = false;
-  return fileHandle.queryPermission({mode:'readwrite'}).then(function(perm){
-    if(perm !== 'granted'){ autoBackupOn = false; renderBackupUI(); return; }
-    return fileHandle.getFile().then(function(file){ return file.text(); }).then(function(txt){
-      var fileEntries = [], fileDeleted = [];
-      if(txt && txt.trim()){
-        var data = JSON.parse(txt); // wirft bei kaputter Datei -> catch (kein Überschreiben)
-        if(Array.isArray(data)){ fileEntries = data; }
-        else if(data && typeof data === 'object'){ fileEntries = data.entries || []; fileDeleted = data.deleted || []; }
-      }
-      var recovered = mergeData(fileEntries, fileDeleted);
-      if(recovered > 0){
-        persistLocal(); hsub();
-        if(el('tab-verlauf') && el('tab-verlauf').classList.contains('on')) renderVerlauf();
-        toast('↩︎ ' + recovered + ' Eintrag(e) aus Sicherungsdatei wiederhergestellt');
-      }
-      return fileHandle.createWritable().then(function(w){
-        return w.write(backupPayload()).then(function(){ return w.close(); });
-      }).then(function(){
-        setLastBackup();
-        setAutoMsg('✓ Automatisch gesichert · ' + timeStr() + ' Uhr · ' + entries.length + ' Einträge');
-      });
-    });
+
+/* HTTP-POST an das Apps-Script. text/plain => „simple request“, kein CORS-Preflight. */
+function sheetsSend(payload){
+  var url = getSheetsUrl();
+  if(!url) return Promise.reject(new Error('keine URL'));
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  }).then(function(t){
+    try { var j = JSON.parse(t); if(j && j.ok === false) throw new Error(j.error || 'Fehler im Script'); } catch(_e){ /* kein JSON => als ok werten */ }
+    return true;
+  });
+}
+
+/* --- Outbox (lokale Warteschlange für fehlgeschlagene Sendungen) --- */
+function outboxLoad(){ try { var a = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
+function outboxSave(a){ try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(a)); } catch(e){} }
+function outboxCount(){ return outboxLoad().length; }
+function outboxAdd(payload){ var a = outboxLoad(); a.push(payload); outboxSave(a); }
+
+/* Hängt einen neuen Eintrag an Google Sheets an (oder in die Outbox bei Fehler). */
+function sheetsAppend(e){
+  if(!getSheetsUrl()){ sheetsStatus('local'); return; }   // nicht verbunden -> nur lokal
+  var payload = sheetRowFor(e);
+  sheetsStatus('sending');
+  sheetsSend(payload).then(function(){
+    sheetsStatus('sent');
+    flushOutbox();   // evtl. ältere Wartende gleich mitnehmen
   }).catch(function(){
-    autoBackupOn = false; renderBackupUI();
-    showStorageWarn('Sicherungsdatei nicht lesbar – Auto-Sicherung pausiert, um Überschreiben zu verhindern. Bitte „Fortsetzen“ oder eine andere Datei wählen.');
-  }).then(function(){
-    _abWriting = false;
-    if(_abDirty) writeBackupNow();
+    outboxAdd(payload);
+    sheetsStatus('queued');
   });
 }
 
-function setupAutoBackup(){
-  if(!fsSupported()){ alert('Dieser Browser unterstützt die automatische Datei-Sicherung nicht. Bitte Chrome oder Edge am Desktop/Chromebook nutzen.'); return; }
-  window.showSaveFilePicker({
-    suggestedName: 'stimmungstagebuch-daten.json',
-    types: [{ description:'Stimmungstagebuch', accept:{'application/json':['.json']} }]
-  }).then(function(handle){
-    fileHandle = handle;
-    autoBackupOn = true;
-    return idbSet('backupFileHandle', handle).catch(function(){}).then(function(){
-      return writeBackupNow();   // liest evtl. vorhandene Datei (Geräte-Migration) + schreibt sicher
+/* Versendet die Outbox der Reihe nach (FIFO). Bei Erfolg wird genau der Kopf entfernt. */
+function flushOutbox(){
+  if(_flushing) return;
+  if(!getSheetsUrl() || !outboxCount()){ renderSheetsUI(); return; }
+  _flushing = true;
+  function step(){
+    var box = outboxLoad();
+    if(!box.length){ _flushing = false; renderSheetsUI(); return; }
+    sheetsSend(box[0]).then(function(){
+      var b = outboxLoad(); b.shift(); outboxSave(b);   // genau diese eine gesendete Zeile entfernen
+      renderSheetsUI();
+      step();
+    }).catch(function(){
+      _flushing = false; renderSheetsUI();   // später erneut versuchen
     });
-  }).then(function(){
-    if(fileHandle === null) return; // nichts gewählt
-    renderBackupUI(); checkBackupWarning(); renderVerlauf();
-    toast(autoBackupOn ? '🔒 Auto-Sicherung aktiv' : 'Sicherungsdatei nicht lesbar – bitte andere Datei wählen.');
-  }).catch(function(e){
-    if(e && e.name === 'AbortError') return; // Abbruch durch Nutzer
-    alert('Auto-Sicherung konnte nicht eingerichtet werden: ' + (e && e.message));
-  });
+  }
+  step();
 }
 
-function resumeAutoBackup(){
-  if(!fileHandle) return;
-  fileHandle.requestPermission({mode:'readwrite'}).then(function(perm){
-    if(perm !== 'granted'){ alert('Zugriff auf die Sicherungsdatei wurde nicht erlaubt.'); return; }
-    autoBackupOn = true;
-    return writeBackupNow().then(function(){
-      renderBackupUI(); checkBackupWarning(); renderVerlauf();
-      toast(autoBackupOn ? '🔒 Auto-Sicherung fortgesetzt' : 'Sicherungsdatei nicht lesbar.');
-    });
-  }).catch(function(e){ alert('Konnte Auto-Sicherung nicht fortsetzen: ' + (e && e.message)); });
+function sheetsStatus(state){
+  var map = {
+    'local':  'Lokal gespeichert (Google Sheets nicht verbunden).',
+    'sending':'Lokal gespeichert · sende an Google Sheets …',
+    'sent':   'Lokal gespeichert · an Google Sheets gesendet ✓',
+    'queued': 'Lokal gespeichert · Sheets-Sendung fehlgeschlagen – wird erneut versucht.'
+  };
+  _lastSheetsMsg = map[state] || _lastSheetsMsg;
+  if(state === 'sent')   toast('✓ An Google Sheets gesendet');
+  if(state === 'queued') toast('⚠️ Sheets-Sendung fehlgeschlagen – in Warteschlange');
+  renderSheetsUI();
 }
 
-function disableAutoBackup(){
-  autoBackupOn = false; fileHandle = null;
-  idbDel('backupFileHandle').catch(function(){});
-  renderBackupUI(); checkBackupWarning();
-  toast('Auto-Sicherung deaktiviert');
-}
-
-function setAutoMsg(msg){
-  var box = el('auto-status'); if(!box || !autoBackupOn) return;
-  var s = box.querySelector('.amsg'); if(s) s.textContent = msg;
-}
-function _abBtn(label, cls, fn){
+/* --- Status-/Konfigurationsbox --- */
+function _sBtn(label, cls, fn){
   var b = document.createElement('button'); b.type = 'button';
   if(cls) b.className = cls; b.textContent = label; b.onclick = fn; return b;
 }
-function renderBackupUI(){
-  var box = el('auto-status'); if(!box) return;
-  if(!fsSupported()){ box.style.display = 'none'; return; }
+function renderSheetsUI(){
+  var box = el('sheets-box'); if(!box) return;
   box.style.display = 'block'; box.innerHTML = '';
+  var url = getSheetsUrl();
+  var pending = outboxCount();
   var info = document.createElement('div');
   var row = document.createElement('div'); row.className = 'arow';
-  if(autoBackupOn && fileHandle){
-    box.className = 'autobox on';
-    info.innerHTML = '🔒 <b>Auto-Sicherung aktiv</b> · ' + esc(fileHandle.name) +
-      '<br><span class="amsg">Jeder Eintrag wird automatisch in diese Datei geschrieben.</span>';
-    row.appendChild(_abBtn('Datei ändern','ghost',setupAutoBackup));
-    row.appendChild(_abBtn('Aus','ghost',disableAutoBackup));
-  } else if(fileHandle){
-    box.className = 'autobox';
-    info.innerHTML = '🔒 <b>Auto-Sicherung pausiert</b> · ' + esc(fileHandle.name) +
-      '<br>Nach einem Browser-Neustart einmal den Dateizugriff bestätigen.';
-    row.appendChild(_abBtn('Fortsetzen','',resumeAutoBackup));
-    row.appendChild(_abBtn('Neu einrichten','ghost',setupAutoBackup));
+  if(url){
+    box.className = 'sheetsbox on';
+    info.innerHTML = '📊 <b>Google Sheets verbunden</b>' +
+      (pending ? (' · <b style="color:#c45000">' + pending + ' in Warteschlange</b>') : '') +
+      '<br><span class="amsg">' + esc(_lastSheetsMsg || 'Jeder neue Eintrag wird zusätzlich angehängt (append-only).') + '</span>';
+    row.appendChild(_sBtn('URL ändern','ghost',connectSheets));
+    if(pending) row.appendChild(_sBtn('Erneut senden','',flushOutbox));
+    row.appendChild(_sBtn('Trennen','ghost',disconnectSheets));
   } else {
-    box.className = 'autobox';
-    info.innerHTML = '🔒 <b>Automatische Datei-Sicherung</b><br>Einmal eine Datei wählen – danach wird jeder Eintrag automatisch dort gespeichert (Tipp: Datei in einen Google-Drive-Ordner legen).';
-    row.appendChild(_abBtn('🔒 Auto-Sicherung einrichten','',setupAutoBackup));
+    box.className = 'sheetsbox';
+    info.innerHTML = '📊 <b>Google Sheets (optional)</b><br>Jeden Eintrag zusätzlich append-only an ein Google Sheet senden. Einmal die Web-App-URL deines Apps-Scripts eintragen.';
+    row.appendChild(_sBtn('🔗 Google Sheets verbinden','',connectSheets));
   }
   box.appendChild(info); box.appendChild(row);
+}
+function connectSheets(){
+  var cur = getSheetsUrl();
+  var u = prompt('Google Apps Script Web-App-URL (endet auf „/exec“):', cur || 'https://script.google.com/macros/s/…/exec');
+  if(u === null) return;
+  u = u.trim();
+  if(u && !/\/exec\/?$/.test(u) && !/script\.google(usercontent)?\.com/.test(u)){
+    if(!confirm('Die URL sieht ungewöhnlich aus (sollte auf „/exec“ enden). Trotzdem speichern?')) return;
+  }
+  setSheetsUrl(u);
+  renderSheetsUI();
+  if(u){ toast('📊 Google Sheets verbunden'); flushOutbox(); }
+}
+function disconnectSheets(){
+  if(!confirm('Google-Sheets-Verbindung trennen?\n(Lokale Daten und die Warteschlange bleiben erhalten; bestehende Sheet-Zeilen werden nicht angetastet.)')) return;
+  setSheetsUrl('');
+  renderSheetsUI();
+  toast('Google Sheets getrennt');
+}
+
+/* ============================ CSV-IMPORT (z.B. aus Google Sheets) ============================ */
+/* Robuster CSV-Parser: Anführungszeichen, doppelte Quotes, Komma/Semikolon, CRLF/LF
+   und eingebettete Zeilenumbrüche werden behandelt. */
+function parseCSV(text){
+  text = text.replace(/^﻿/, '');
+  var head = text.slice(0, (text.indexOf('\n') + 1) || text.length);
+  var delim = (head.split(';').length > head.split(',').length) ? ';' : ',';
+  var rows = [], row = [], field = '', inQ = false, i = 0;
+  while(i < text.length){
+    var c = text.charAt(i);
+    if(inQ){
+      if(c === '"'){
+        if(text.charAt(i+1) === '"'){ field += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if(c === '"'){ inQ = true; i++; continue; }
+    if(c === delim){ row.push(field); field = ''; i++; continue; }
+    if(c === '\r'){ i++; continue; }
+    if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += c; i++;
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* CSV (deutsche Spalten, z.B. aus Google Sheets) -> interne Einträge. */
+function csvToEntries(text){
+  var rows = parseCSV(text);
+  if(rows.length < 2) return { entries: [], skipped: 0 };
+  var headers = rows[0].map(function(h){ return String(h).trim(); });
+  var idx = {}; headers.forEach(function(h, i){ if(idx[h] == null) idx[h] = i; });
+  function pick(row, names){
+    for(var k=0;k<names.length;k++){ if(idx[names[k]] != null){ var v = row[idx[names[k]]]; return v != null ? String(v).trim() : ''; } }
+    return '';
+  }
+  function cellInt(row, nm){ if(idx[nm] == null) return null; var n = parseInt(String(row[idx[nm]]||'').trim(), 10); return isNaN(n) ? null : n; }
+  function toInt(v){ var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+  var ALIAS = {
+    id:['Eintrags-ID','id'], date:['Datum'], time:['Uhrzeit'], note:['Notiz'], typ:['Typ','type'],
+    mood:['Gesamtstimmung','Stimmung(1-7)','Stimmung'],
+    night:['Nachtschlaf Std.','Nachtschlaf(Std)','Nachtschlaf'],
+    nap:['Mittagsschlaf Std.','Mittagsschlaf(Std)','Mittagsschlaf'],
+    elv:['Elvanse heute','Elvanse'], elvTime:['Elvanse-Uhrzeit'], lamo:['Lamotrigin heute','Lamotrigin'],
+    tags:['Äußere Umstände','Tags']
+  };
+  var out = [], skipped = 0;
+  for(var r=1; r<rows.length; r++){
+    var row = rows[r];
+    if(!row || row.join('').trim() === '') continue;
+    var typ = pick(row, ALIAS.typ).toLowerCase();
+    var isCheckin;
+    if(typ.indexOf('check') >= 0) isCheckin = true;
+    else if(typ.indexOf('tages') >= 0) isCheckin = false;
+    else isCheckin = (pick(row, ALIAS.mood) !== '');   // Heuristik, falls Typ fehlt
+    var date = pick(row, ALIAS.date), time = pick(row, ALIAS.time);
+    if(!date && !time){ skipped++; continue; }          // unbrauchbare Zeile
+    var e = { id: String(pick(row, ALIAS.id) || uid()), date: date, time: time, note: pick(row, ALIAS.note) };
+    if(isCheckin){
+      e.type = 'checkin';
+      var m = toInt(pick(row, ALIAS.mood)); if(m != null) e.mood = m;
+      var cvv = {};
+      CLIN.forEach(function(s){ var val = cellInt(row, s.nm); if(val != null) cvv[s.id] = val; });
+      e.cv = cvv;
+    } else {
+      e.type = 'tagesdaten';
+      var ns = numOrNull(pick(row, ALIAS.night)); if(ns != null) e.nightSleep = ns;
+      var np = numOrNull(pick(row, ALIAS.nap));   if(np != null) e.napSleep = np;
+      var elv = pick(row, ALIAS.elv);     if(elv) e.elv = elv;
+      var et  = pick(row, ALIAS.elvTime); if(et)  e.elvTime = et;
+      var lam = pick(row, ALIAS.lamo);    if(lam) e.lamo = lam;
+      var bvv = {};
+      BEHAV.forEach(function(s){ var val = cellInt(row, s.nm); if(val != null) bvv[s.id] = val; });
+      e.bv = bvv;
+      var tg = pick(row, ALIAS.tags);
+      e.tags = tg ? tg.split(/[;,]/).map(function(t){ return t.trim(); }).filter(Boolean) : [];
+    }
+    out.push(e);
+  }
+  return { entries: out, skipped: skipped };
 }
 
 /* Dauerhaften Speicher anfordern: verhindert, dass Chrome localStorage automatisch löscht. */
@@ -1092,28 +1188,8 @@ function requestPersistence(){
   } catch(e){}
 }
 
-/* Beim Start: gemerktes Datei-Handle wiederherstellen. */
-function initAutoBackup(){
-  if(!fsSupported()){ renderBackupUI(); return; }
-  idbGet('backupFileHandle').then(function(h){
-    if(!h){ renderBackupUI(); return; }
-    fileHandle = h;
-    return h.queryPermission({mode:'readwrite'}).then(function(perm){
-      if(perm === 'granted'){
-        autoBackupOn = true;
-        // Liest die Datei, holt fehlende Einträge zurück (Wipe-Recovery) und schreibt sicher.
-        return writeBackupNow().then(function(){ renderBackupUI(); checkBackupWarning(); });
-      }
-      autoBackupOn = false; // braucht Nutzergeste -> „Fortsetzen“
-      renderBackupUI();
-    });
-  }).catch(function(){ renderBackupUI(); });
-}
-
 /* ============================ INIT ============================ */
-/* Kein automatisches Befüllen mit Demo-Daten: bei leerem Speicher bleibt die App leer.
-   So kann nach einem Speicher-Verlust nichts Falsches in die Sicherungsdatei geraten;
-   stattdessen werden die echten Einträge aus der Sicherungsdatei wiederhergestellt. */
+/* Kein automatisches Befüllen mit Demo-Daten: bei leerem Speicher bleibt die App leer. */
 window.onload = function(){
   load();
   if(!storageAvailable()) showStorageWarn();
@@ -1123,8 +1199,10 @@ window.onload = function(){
   hsub();
   checkBackupWarning();
   requestPersistence();
-  initAutoBackup();
+  renderSheetsUI();
+  flushOutbox();   // beim Start wartende Sheets-Sendungen erneut versuchen
 };
+window.addEventListener('online', function(){ flushOutbox(); });
 </script>
 </body>
 </html>
