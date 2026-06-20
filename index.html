@@ -87,6 +87,12 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
 .stval { font-size:14px; font-weight:700; white-space:nowrap; }
 .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); background:var(--text); color:#fff; padding:11px 18px; border-radius:22px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:2000; max-width:90%; text-align:center; box-shadow:0 6px 20px rgba(45,74,40,.25); }
 .toast.show { opacity:.96; transform:translateX(-50%) translateY(0); }
+.autobox { border:1px solid var(--border); background:var(--surface2); border-radius:var(--rs); padding:11px 13px; margin-bottom:12px; font-size:12px; color:var(--text2); line-height:1.5; }
+.autobox.on { border-color:#86c48a; background:#eef8ee; }
+.autobox b { color:var(--text); }
+.autobox .arow { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
+.autobox button { padding:8px 13px; border-radius:8px; border:1.5px solid var(--lav); background:#f3effb; color:var(--lav); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
+.autobox button.ghost { border-color:var(--border); background:var(--surface); color:var(--text3); }
 </style>
 </head>
 <body>
@@ -125,6 +131,7 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
       <div id="backup-warn" style="display:none;background:#fff3e0;border:1px solid #f0c896;border-radius:9px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#9a6a1a">
         ⚠️ <span id="backup-warn-txt"></span>
       </div>
+      <div id="auto-status" class="autobox" style="display:none"></div>
       <div class="bkrow">
         <button class="bkbtn" type="button" onclick="backupData()">💾 Sichern</button>
         <button class="bkbtn" type="button" onclick="document.getElementById('restore-file').click()">📂 Laden</button>
@@ -284,6 +291,12 @@ var selLamo = null;
 var curMode = 'checkin';
 var loadFailed = false;
 
+/* Auto-Sicherung in eine echte Datei (File System Access API) */
+var fileHandle = null;     // FileSystemFileHandle der Sicherungsdatei
+var autoBackupOn = false;  // aktiv (Handle vorhanden + Schreibrechte erteilt)
+var _abWriting = false;    // Schreibvorgang läuft
+var _abDirty = false;      // während des Schreibens kam neue Änderung
+
 /* ============================ HELFER ============================ */
 function el(id){ return document.getElementById(id); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -365,6 +378,7 @@ function save(){
   try {
     localStorage.setItem(SK, JSON.stringify(entries));
     showStorageOk();
+    scheduleAutoBackup();
     return true;
   } catch(e){
     showStorageWarn('Speichern fehlgeschlagen (Speicher voll oder blockiert). Bitte sichere ein Backup.');
@@ -751,6 +765,7 @@ function setLastBackup(){ try { localStorage.setItem(SK + '_lastbackup', new Dat
 
 function checkBackupWarning(){
   var warn = el('backup-warn'); var txt = el('backup-warn-txt');
+  if(autoBackupOn){ warn.style.display='none'; return; }
   if(!entries.length){ warn.style.display='none'; return; }
   var last = getLastBackup();
   if(!last){
@@ -879,6 +894,198 @@ function copyModalText(){
   if(window._modalIsBackup){ setLastBackup(); checkBackupWarning(); }
 }
 
+/* ============================ AUTO-SICHERUNG IN DATEI ============================ */
+/* Speichert nach jedem Eintrag automatisch in eine echte .json-Datei (File System
+   Access API). Datei z.B. in einen Google-Drive-/Dropbox-Ordner legen -> übersteht
+   Cache-Löschung und Gerätewechsel. Nur Chrome/Edge Desktop & Chromebook. */
+
+function fsSupported(){ return typeof window.showSaveFilePicker === 'function'; }
+
+/* --- IndexedDB: Datei-Handle dauerhaft merken (localStorage kann das nicht) --- */
+function idbOpen(){
+  return new Promise(function(res,rej){
+    var r = indexedDB.open('pdiary_fs', 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore('kv'); };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+  });
+}
+function idbSet(key,val){
+  return idbOpen().then(function(db){ return new Promise(function(res,rej){
+    var tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(val,key);
+    tx.oncomplete = function(){ res(); }; tx.onerror = function(){ rej(tx.error); };
+  }); });
+}
+function idbGet(key){
+  return idbOpen().then(function(db){ return new Promise(function(res,rej){
+    var tx = db.transaction('kv','readonly'); var rq = tx.objectStore('kv').get(key);
+    rq.onsuccess = function(){ res(rq.result); }; rq.onerror = function(){ rej(rq.error); };
+  }); });
+}
+function idbDel(key){
+  return idbOpen().then(function(db){ return new Promise(function(res,rej){
+    var tx = db.transaction('kv','readwrite'); tx.objectStore('kv').delete(key);
+    tx.oncomplete = function(){ res(); }; tx.onerror = function(){ rej(tx.error); };
+  }); });
+}
+
+function backupPayload(){
+  return JSON.stringify({ app:'stimmungstagebuch', schema:SK, exported:new Date().toISOString(), count:entries.length, entries:entries }, null, 2);
+}
+
+/* Liest eine Sicherungsdatei und führt enthaltene Einträge duplikatfrei zusammen.
+   So gehen beim Verbinden (z.B. auf neuem Gerät) keine Daten verloren. */
+function mergeFromHandle(handle){
+  return handle.getFile().then(function(file){ return file.text(); }).then(function(txt){
+    if(!txt || !txt.trim()) return 0;
+    var data = JSON.parse(txt);
+    var incoming = Array.isArray(data) ? data : (data && data.entries);
+    if(!Array.isArray(incoming)) return 0;
+    var existing = {}; entries.forEach(function(e){ existing[String(e.id)] = true; });
+    var added = 0;
+    incoming.forEach(function(raw){
+      var m = migrateEntry(raw);
+      if(m && !existing[String(m.id)]){ entries.push(m); existing[String(m.id)] = true; added++; }
+    });
+    return added;
+  }).catch(function(){ return 0; }); // leere/ungültige Datei -> ignorieren
+}
+
+function scheduleAutoBackup(){
+  if(!autoBackupOn || !fileHandle) return;
+  if(_abWriting){ _abDirty = true; return; }
+  writeBackupNow();
+}
+function writeBackupNow(){
+  if(!fileHandle){ return Promise.resolve(); }
+  _abWriting = true; _abDirty = false;
+  return fileHandle.queryPermission({mode:'readwrite'}).then(function(perm){
+    if(perm !== 'granted'){ autoBackupOn = false; renderBackupUI(); return; }
+    return fileHandle.createWritable().then(function(w){
+      return w.write(backupPayload()).then(function(){ return w.close(); });
+    }).then(function(){
+      setLastBackup();
+      setAutoMsg('🔒 Auto-Sicherung gespeichert');
+    });
+  }).catch(function(){
+    autoBackupOn = false; renderBackupUI();
+    showStorageWarn('Auto-Sicherung in die Datei ist fehlgeschlagen. Bitte „Fortsetzen“ tippen oder neu einrichten.');
+  }).then(function(){
+    _abWriting = false;
+    if(_abDirty) writeBackupNow();
+  });
+}
+
+function setupAutoBackup(){
+  if(!fsSupported()){ alert('Dieser Browser unterstützt die automatische Datei-Sicherung nicht. Bitte Chrome oder Edge am Desktop/Chromebook nutzen.'); return; }
+  window.showSaveFilePicker({
+    suggestedName: 'stimmungstagebuch-daten.json',
+    types: [{ description:'Stimmungstagebuch', accept:{'application/json':['.json']} }]
+  }).then(function(handle){
+    return mergeFromHandle(handle).then(function(){
+      fileHandle = handle;
+      autoBackupOn = true;
+      return idbSet('backupFileHandle', handle).catch(function(){}); // best effort
+    }).then(function(){
+      save();              // lokal speichern + löst Datei-Schreiben aus
+      renderBackupUI();
+      checkBackupWarning();
+      renderVerlauf();
+      toast('🔒 Auto-Sicherung aktiv');
+    });
+  }).catch(function(e){
+    if(e && e.name === 'AbortError') return; // Abbruch durch Nutzer
+    alert('Auto-Sicherung konnte nicht eingerichtet werden: ' + (e && e.message));
+  });
+}
+
+function resumeAutoBackup(){
+  if(!fileHandle) return;
+  fileHandle.requestPermission({mode:'readwrite'}).then(function(perm){
+    if(perm !== 'granted'){ alert('Zugriff auf die Sicherungsdatei wurde nicht erlaubt.'); return; }
+    autoBackupOn = true;
+    return mergeFromHandle(fileHandle).then(function(added){
+      save();
+      renderBackupUI();
+      checkBackupWarning();
+      renderVerlauf();
+      toast(added > 0 ? ('🔒 Auto-Sicherung fortgesetzt · ' + added + ' Eintrag(e) übernommen') : '🔒 Auto-Sicherung fortgesetzt');
+    });
+  }).catch(function(e){ alert('Konnte Auto-Sicherung nicht fortsetzen: ' + (e && e.message)); });
+}
+
+function disableAutoBackup(){
+  autoBackupOn = false; fileHandle = null;
+  idbDel('backupFileHandle').catch(function(){});
+  renderBackupUI(); checkBackupWarning();
+  toast('Auto-Sicherung deaktiviert');
+}
+
+function setAutoMsg(msg){
+  var box = el('auto-status'); if(!box || !autoBackupOn) return;
+  var s = box.querySelector('.amsg'); if(s) s.textContent = msg;
+}
+function _abBtn(label, cls, fn){
+  var b = document.createElement('button'); b.type = 'button';
+  if(cls) b.className = cls; b.textContent = label; b.onclick = fn; return b;
+}
+function renderBackupUI(){
+  var box = el('auto-status'); if(!box) return;
+  if(!fsSupported()){ box.style.display = 'none'; return; }
+  box.style.display = 'block'; box.innerHTML = '';
+  var info = document.createElement('div');
+  var row = document.createElement('div'); row.className = 'arow';
+  if(autoBackupOn && fileHandle){
+    box.className = 'autobox on';
+    info.innerHTML = '🔒 <b>Auto-Sicherung aktiv</b> · ' + esc(fileHandle.name) +
+      '<br><span class="amsg">Jeder Eintrag wird automatisch in diese Datei geschrieben.</span>';
+    row.appendChild(_abBtn('Datei ändern','ghost',setupAutoBackup));
+    row.appendChild(_abBtn('Aus','ghost',disableAutoBackup));
+  } else if(fileHandle){
+    box.className = 'autobox';
+    info.innerHTML = '🔒 <b>Auto-Sicherung pausiert</b> · ' + esc(fileHandle.name) +
+      '<br>Nach einem Browser-Neustart einmal den Dateizugriff bestätigen.';
+    row.appendChild(_abBtn('Fortsetzen','',resumeAutoBackup));
+    row.appendChild(_abBtn('Neu einrichten','ghost',setupAutoBackup));
+  } else {
+    box.className = 'autobox';
+    info.innerHTML = '🔒 <b>Automatische Datei-Sicherung</b><br>Einmal eine Datei wählen – danach wird jeder Eintrag automatisch dort gespeichert (Tipp: Datei in einen Google-Drive-Ordner legen).';
+    row.appendChild(_abBtn('🔒 Auto-Sicherung einrichten','',setupAutoBackup));
+  }
+  box.appendChild(info); box.appendChild(row);
+}
+
+/* Dauerhaften Speicher anfordern: verhindert, dass Chrome localStorage automatisch löscht. */
+function requestPersistence(){
+  try {
+    if(navigator.storage && navigator.storage.persist){
+      navigator.storage.persisted().then(function(already){
+        if(!already) navigator.storage.persist();
+      }).catch(function(){});
+    }
+  } catch(e){}
+}
+
+/* Beim Start: gemerktes Datei-Handle wiederherstellen. */
+function initAutoBackup(){
+  if(!fsSupported()){ renderBackupUI(); return; }
+  idbGet('backupFileHandle').then(function(h){
+    if(!h){ renderBackupUI(); return; }
+    fileHandle = h;
+    return h.queryPermission({mode:'readwrite'}).then(function(perm){
+      if(perm === 'granted'){
+        autoBackupOn = true;
+        return mergeFromHandle(h).then(function(added){
+          if(added > 0){ save(); renderVerlauf(); hsub(); }
+          renderBackupUI(); checkBackupWarning();
+        });
+      }
+      autoBackupOn = false; // braucht Nutzergeste -> „Fortsetzen“
+      renderBackupUI();
+    });
+  }).catch(function(){ renderBackupUI(); });
+}
+
 /* ============================ SEED (nur bei leerem Speicher) ============================ */
 var SEED = [
   {id:'seed1',date:'2026-06-18',time:'09:30',type:'checkin',mood:3,cv:{episode:2,leidensdruck:3,anxiety:3,hopeless:3,energy:2,selfeff:2,selfimg:2,social:2,impuls:2,racing:2,concent:2,illness:2,past:3},note:'Schwerer Start in den Tag.'},
@@ -900,6 +1107,8 @@ window.onload = function(){
   setMode('checkin');
   hsub();
   checkBackupWarning();
+  requestPersistence();
+  initAutoBackup();
 };
 </script>
 </body>

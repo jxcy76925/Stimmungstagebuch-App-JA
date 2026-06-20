@@ -28,10 +28,29 @@ Gedacht zur Verlaufsdokumentation für die psychiatrische Behandlung
 - Verhaltens-/Alltagsskalen, äußere Umstände (Tags), Medikamenten- und Schlaferfassung
 - **Verlauf** mit Diagramm und Einzeleinträgen
 - **Statistik** (Durchschnitte, Schwankungen, häufige Tags)
+- **Automatische Datei-Sicherung** (Chrome/Edge Desktop & Chromebook): einmal eine
+  `.json`-Datei wählen – danach wird jeder Eintrag automatisch dort gespeichert.
+  Datei in einen Google-Drive-/Dropbox-Ordner legen → übersteht Cache-Löschung und
+  Gerätewechsel. Beim Verbinden werden vorhandene Einträge duplikatfrei zusammengeführt.
 - **Backup** als `.json`-Download und **Wiederherstellen** per Datei-Import (Merge ohne Duplikate)
 - **CSV-Export** für den Arzt
-- Defensive Speicherung: Warnungen statt stiller Datenverluste; bei beschädigten Daten
-  wird automatisch eine Roh-Sicherungskopie behalten.
+- Defensive Speicherung: `navigator.storage.persist()` gegen automatisches Löschen;
+  Warnungen statt stiller Datenverluste; bei beschädigten Daten wird automatisch eine
+  Roh-Sicherungskopie behalten.
+
+### Dauerhafte Speicherung – Empfehlung
+
+Die Daten liegen primär im `localStorage` des Browsers (gebunden an **eine** Adresse/Origin).
+Für eine zuverlässige Langzeit-Sammlung daher:
+
+1. Immer dieselbe **GitHub-Pages-URL (https)** nutzen (stabiler, sicherer Kontext) – nicht
+   mal `file://` und mal `https://`, da das getrennte Speicher sind.
+2. Einmal **„Auto-Sicherung einrichten"** und die Zieldatei in einen synchronisierten
+   Cloud-Ordner (z. B. Google Drive) legen. Damit ist jeder Eintrag automatisch redundant
+   auf der Festplatte und – über die Cloud-Synchronisierung – auch auf anderen Geräten.
+
+> Hinweis: Die geräteübergreifende Zusammenführung vereinigt Einträge (per ID); gelöschte
+> Einträge werden bewusst nicht über Geräte hinweg entfernt, um Datenverlust zu vermeiden.
 
 ## Daten & Datenschutz
 
