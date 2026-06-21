@@ -84,6 +84,7 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
 .strow { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); gap:10px; }
 .strow:last-child { border-bottom:none; }
 .stlbl { font-size:13px; color:var(--text2); }
+.sthint { display:block; font-size:10px; color:var(--text3); font-weight:400; margin-top:2px; line-height:1.3; }
 .stval { font-size:14px; font-weight:700; white-space:nowrap; }
 .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(20px); background:var(--text); color:#fff; padding:11px 18px; border-radius:22px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:2000; max-width:90%; text-align:center; box-shadow:0 6px 20px rgba(45,74,40,.25); }
 .toast.show { opacity:.96; transform:translateX(-50%) translateY(0); }
@@ -249,7 +250,9 @@ var CLIN = [
   {id:'concent',      nm:'Konzentration',                           cl:'#4a9e5c', ds:['Keine','Sehr gering','Mittel','Gut','Sehr fokussiert'], tp:'Kognitive Klarheit (ADHS)'},
   {id:'dereali',      nm:'Derealisation',                           cl:'#7b6fa0', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Gefühl der Unwirklichkeit'},
   {id:'illness',      nm:'Gefühlte psychische Stabilität',          cl:'#5aa0bd', ds:['Akut krank / kritisch','Deutlich instabil','Neutral / leicht eingeschränkt','Stabil & gesund ✓','„Geheilt“/euphorisch gesund ⚠️'], tp:'Eigenes Empfinden – nicht die Diagnose. Hoch = gut; Zielbereich „stabil & gesund“ (4). Ganz oben (5) kann Hypomanie sein'},
-  {id:'past',         nm:'Verhaftung in Vergangenheit / Personen',  cl:'#d4748a', ds:['Ganz im Hier und Jetzt','Eher präsent','Teils grübelnd','Stark in der Vergangenheit','Komplett bei Ex-Personen / Grübeln'], tp:'Limerence / Favourite-Person-Bindung, Grübeln über Vergangenes (BPS)'}
+  {id:'past',         nm:'Verhaftung in Vergangenheit / Personen',  cl:'#d4748a', ds:['Ganz im Hier und Jetzt','Eher präsent','Teils grübelnd','Stark in der Vergangenheit','Komplett bei Ex-Personen / Grübeln'], tp:'Limerence / Favourite-Person-Bindung, Grübeln über Vergangenes (BPS)'},
+  {id:'ident',        nm:'Identifikation mit Symptomatik',          cl:'#7b6fa0', ds:['Klarer Wunsch nach psychischer Gesundheit','Eher auf Stabilisierung ausgerichtet','Schwankend / ambivalent','Eher identifiziert mit der Symptomatik','Voll identifiziert mit der Symptomatik'], tp:'Innere Haltung zwischen Wunsch nach psychischer Gesundheit und Identifikation mit der eigenen Symptomatik'},
+  {id:'risk',         nm:'Risikoneigung / auffälliges Verhalten',   cl:'#d4901a', ds:['Unauffällig und vernünftig','Weitestgehend unauffällig und vernünftig','Leicht erhöhte Risikoneigung / leichte Auffälligkeit','Spürbar auffälliger oder riskanter als üblich','Deutlich bis stark enthemmtes, klar untypisches Verhalten'], tp:'Hang zu auffälligen, unvernünftigen, enthemmten oder für die eigene Person untypischen Entscheidungen und Verhaltensweisen'}
 ];
 
 /* Verhaltens-/Alltagsskalen – gehören ausschließlich zu Tagesdaten. */
@@ -271,11 +274,10 @@ var LAMOTRIGIN = ['Nicht genommen','25 mg','50 mg','100 mg','150 mg','200 mg'];
 
 /* Chartlinien im Verlauf (basieren auf Check-In-Daten). */
 var CHART_LINES = [
-  {lb:'Stimmung',         cl:'#4a9e5c', mx:7, key:'mood'},
-  {lb:'Angst',            cl:'#c07a30', mx:5, key:'anxiety'},
-  {lb:'Hoffnungslosigkeit',cl:'#c0554a',mx:5, key:'hopeless'},
-  {lb:'Energie',          cl:'#6bbf7a', mx:5, key:'energy'},
-  {lb:'Selbstwirksamkeit',cl:'#4a8fa8', mx:5, key:'selfeff'}
+  {lb:'Stimmung',                       cl:'#4a9e5c', mx:7, key:'mood'},
+  {lb:'Hintergrundangst',               cl:'#c07a30', mx:5, key:'anxiety'},
+  {lb:'Selbstwirksamkeit',              cl:'#4a8fa8', mx:5, key:'selfeff'},
+  {lb:'Gefühlte psychische Stabilität', cl:'#5aa0bd', mx:5, key:'illness'}
 ];
 
 var SK = 'pdiary_v5';
@@ -728,6 +730,36 @@ function drawChart(data){
 }
 
 /* ============================ STATISTIK ============================ */
+/* Kurze, sachliche Lesehinweise pro Item (Untertitel in der Statistik).
+   Schlüssel = Skalen-id (CLIN/BEHAV) bzw. Sonderwerte (mood/swing/Schlaf). */
+var STAT_HINTS = {
+  mood:'Höhere Werte = positivere Stimmung',
+  swing:'Höhere Werte = größere Schwankungen',
+  nightSleep:'Durchschnittliche Stunden pro Nacht',
+  napSleep:'Durchschnittliche Stunden Mittagsschlaf',
+  episode:'Niedrig = depressiv, hoch = gehoben, Mitte = gemischt',
+  leidensdruck:'Höhere Werte = stärkere Belastung',
+  anxiety:'Höhere Werte = stärkere Belastung',
+  melancholy:'Höhere Werte = stärkere Melancholie/Nostalgie',
+  hopeless:'Höhere Werte = stärkere Hoffnungslosigkeit',
+  energy:'Höhere Werte = mehr körperliche Energie',
+  selfeff:'Höhere Werte = stärkere Handlungsfähigkeit',
+  selfimg:'Wert 4 als Zielbereich; 5 kann übersteigert sein',
+  social:'Mittlere bis leicht erhöhte Werte passend; Extreme auffällig',
+  impuls:'Höhere Werte = stärkere Impulsivität/Reizbarkeit',
+  racing:'Niedrig = verlangsamt, hoch = rasend, Mitte = normal',
+  concent:'Höhere Werte = stärkere Konzentration',
+  dereali:'Höhere Werte = stärkere Derealisation',
+  illness:'Wert 4 als Zielbereich; sehr hohe Werte können übersteigert sein',
+  past:'Höhere Werte = stärkere Verhaftung in Vergangenheit/Personen',
+  ident:'Höhere Werte = stärkere Identifikation mit der Symptomatik',
+  risk:'Höhere Werte = stärkere Auffälligkeit/Enthemmung',
+  eating:'Mitte = ausgewogen; Extreme (zu wenig/zu viel) auffällig',
+  spending:'Höhere Werte = mehr/impulsivere Ausgaben',
+  screen:'Höhere Werte = mehr Bildschirmzeit',
+  haushalt:'Höhere Werte = Haushalt stärker auf Stand',
+  selfcare:'Höhere Werte = mehr Selbstpflege'
+};
 function renderStats(){
   var sc = el('stats'), tc = el('tagstats');
   if(!entries.length){ sc.innerHTML = '<div class="empty">Noch keine Daten.</div>'; tc.innerHTML=''; return; }
@@ -743,20 +775,22 @@ function renderStats(){
   var deltas = [];
   for(var i=1;i<moodSorted.length;i++) deltas.push(Math.abs(moodSorted[i].mood - moodSorted[i-1].mood));
 
+  var H = STAT_HINTS;
   var rows = [];
-  rows.push(['Einträge gesamt', entries.length, '#4a9e5c']);
-  rows.push(['davon Check-Ins', entries.filter(function(e){return e.type==='checkin';}).length, '#8aaa84']);
-  rows.push(['davon Tagesdaten', entries.filter(function(e){return e.type==='tagesdaten';}).length, '#8aaa84']);
-  rows.push(['⌀ Stimmung (1–7)', avg(moods), '#4a9e5c']);
-  rows.push(['⌀ Stimmungsschwankung', avg(deltas), '#d4901a']);
-  CLIN.forEach(function(s){ rows.push(['⌀ ' + shortName(s.nm), avg(cvNums(s.id)), s.cl]); });
-  rows.push(['⌀ Nachtschlaf (Std.)', avg(fieldNums('nightSleep')), '#4a8fa8']);
-  rows.push(['⌀ Mittagsschlaf (Std.)', avg(fieldNums('napSleep')), '#4a8fa8']);
-  BEHAV.forEach(function(s){ rows.push(['⌀ ' + shortName(s.nm), avg(bvNums(s.id)), s.cl]); });
+  rows.push(['Einträge gesamt', entries.length, '#4a9e5c', '']);
+  rows.push(['davon Check-Ins', entries.filter(function(e){return e.type==='checkin';}).length, '#8aaa84', '']);
+  rows.push(['davon Tagesdaten', entries.filter(function(e){return e.type==='tagesdaten';}).length, '#8aaa84', '']);
+  rows.push(['⌀ Stimmung (1–7)', avg(moods), '#4a9e5c', H.mood]);
+  rows.push(['⌀ Stimmungsschwankung', avg(deltas), '#d4901a', H.swing]);
+  CLIN.forEach(function(s){ rows.push(['⌀ ' + shortName(s.nm), avg(cvNums(s.id)), s.cl, H[s.id] || '']); });
+  rows.push(['⌀ Nachtschlaf (Std.)', avg(fieldNums('nightSleep')), '#4a8fa8', H.nightSleep]);
+  rows.push(['⌀ Mittagsschlaf (Std.)', avg(fieldNums('napSleep')), '#4a8fa8', H.napSleep]);
+  BEHAV.forEach(function(s){ rows.push(['⌀ ' + shortName(s.nm), avg(bvNums(s.id)), s.cl, H[s.id] || '']); });
 
   var html = '';
   rows.forEach(function(r){
-    html += '<div class="strow"><span class="stlbl">'+esc(r[0])+'</span><span class="stval" style="color:'+r[2]+'">'+r[1]+'</span></div>';
+    var hint = r[3] ? '<span class="sthint">'+esc(r[3])+'</span>' : '';
+    html += '<div class="strow"><span class="stlbl">'+esc(r[0])+hint+'</span><span class="stval" style="color:'+r[2]+'">'+r[1]+'</span></div>';
   });
   sc.innerHTML = html;
 

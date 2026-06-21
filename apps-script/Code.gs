@@ -23,6 +23,9 @@
  *
  * Die beiden Blätter "Check-In" und "Tagesdaten" inkl. deutscher Spaltenüberschriften
  * werden beim ersten Eintrag automatisch angelegt (Überschriften kommen aus der App).
+ * Kommen später NEUE Spalten dazu (z.B. neue klinische Skala), werden sie HINTEN an die
+ * Kopfzeile ergänzt; bestehende Spalten, Reihenfolge und Datenzeilen bleiben unverändert.
+ * Die Werte werden nach Spaltenname zugeordnet, damit nie etwas verrutscht.
  */
 
 function doPost(e) {
@@ -44,10 +47,43 @@ function doPost(e) {
     try {
       var sh = ss.getSheetByName(sheetName);
       if (!sh) { sh = ss.insertSheet(sheetName); }
-      if (sh.getLastRow() === 0 && headers.length) {
-        sh.appendRow(headers);                  // einmalig: Kopfzeile
+
+      // Eingehende Header -> Wert (nach Spaltenname).
+      var incoming = {};
+      for (var i = 0; i < headers.length; i++) {
+        incoming[String(headers[i])] = (i < values.length) ? values[i] : '';
       }
-      sh.appendRow(values);                     // <-- der einzige Daten-Schreibvorgang: nur ANHÄNGEN
+
+      // Bestehende Kopfzeile lesen (bestehende Spalten/Reihenfolge bleiben unangetastet).
+      var lastCol = sh.getLastColumn();
+      var existing = (sh.getLastRow() === 0 || lastCol === 0)
+        ? []
+        : sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(h){ return String(h); });
+
+      if (existing.length === 0) {
+        // Neues/leeres Blatt: Kopfzeile aus den eingehenden Headern anlegen.
+        sh.appendRow(headers);
+        existing = headers.map(function(h){ return String(h); });
+      } else {
+        // Fehlende Spalten NUR HINTEN ergänzen – nichts löschen, nichts umsortieren.
+        var toAdd = [];
+        for (var j = 0; j < headers.length; j++) {
+          if (existing.indexOf(String(headers[j])) === -1) toAdd.push(String(headers[j]));
+        }
+        if (toAdd.length) {
+          sh.getRange(1, existing.length + 1, 1, toAdd.length).setValues([toAdd]);
+          existing = existing.concat(toAdd);
+        }
+      }
+
+      // Zeile in der REIHENFOLGE der vorhandenen Kopfzeile bauen (Zuordnung nach Spaltenname,
+      // damit nie etwas verrutscht). Unbekannte/fehlende Felder bleiben leer.
+      var out = [];
+      for (var c = 0; c < existing.length; c++) {
+        var name = existing[c];
+        out.push(incoming.hasOwnProperty(name) ? incoming[name] : '');
+      }
+      sh.appendRow(out);                        // <-- der einzige Daten-Schreibvorgang: nur ANHÄNGEN
       var row = sh.getLastRow();
     } finally {
       lock.releaseLock();
