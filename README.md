@@ -31,6 +31,9 @@ Gedacht zur Verlaufsdokumentation für die psychiatrische Behandlung
 - **Sichern**: manueller `.json`-Export des kompletten lokalen Standes
 - **Laden**: manueller Import per Dateiauswahl – unterstützt **JSON** (App-Backup) **und CSV**
   (z. B. aus Google Sheets exportiert). Rein lokal, ergänzt/­stellt Einträge wieder her.
+  Enthält die Datei lokal gelöschte oder geänderte Einträge (gleiche Eintrags-ID), fragt
+  die App nach, ob sie **wiederhergestellt** bzw. **mit den Werten aus der Datei aktualisiert**
+  werden sollen. Es wird nie nach Google Sheets zurückgeschrieben.
 - **CSV-Export** für den Arzt
 - **Google Sheets (optional, append-only):** jeder neue Eintrag wird zusätzlich als eine
   Zeile an ein Google Sheet angehängt – siehe unten.

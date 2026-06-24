@@ -883,26 +883,38 @@ function restoreData(event){
       return;
     }
 
-    // Manueller Import darf lokal gelöschte Einträge zurückholen. Nur nachfragen,
-    // wenn die Datei tatsächlich aktuell gelöschte IDs enthält.
-    var restorable = 0;
+    // Manueller Import: vorab prüfen, was die Datei mit dem lokalen Bestand macht.
+    // - restorable: IDs, die lokal gelöscht sind (Tombstone) und in der Datei stehen
+    // - changedExisting: IDs, die lokal vorhanden sind, sich aber von der Datei unterscheiden
+    var localById = {};
+    entries.forEach(function(e){ localById[String(e.id)] = e; });
+    var restorable = 0, changedExisting = 0;
     incoming.forEach(function(raw){
       var id = (raw && raw.id != null && raw.id !== '') ? String(raw.id) : null;
-      if(id && deleted[id]) restorable++;
+      if(!id) return;
+      if(deleted[id]){ restorable++; return; }
+      var loc = localById[id];
+      if(loc){ var m = migrateEntry(raw); if(m && canon(m) !== canon(loc)) changedExisting++; }
     });
-    var allowRestore = false;
+
+    var allowRestore = false, updateExisting = false;
     if(restorable > 0){
       allowRestore = confirm(restorable + ' Eintrag/Einträge aus dieser Datei wurden lokal gelöscht.\n\n' +
         'OK = wiederherstellen\nAbbrechen = ohne die gelöschten importieren');
     }
+    if(changedExisting > 0){
+      updateExisting = confirm(changedExisting + ' bereits vorhandene(r) Eintrag/Einträge unterscheiden sich von der Datei.\n\n' +
+        'OK = mit den Werten aus der Datei aktualisieren\nAbbrechen = vorhandene unverändert lassen');
+    }
 
     // Rein lokal: kein Rückschreiben nach Google Sheets, kein sheetsAppend().
-    var added = mergeData(incoming, incDeleted, { allowRestoreDeleted: allowRestore });
+    var res = mergeData(incoming, incDeleted, { allowRestoreDeleted: allowRestore, updateExisting: updateExisting });
     var ok = save();
     hsub();
     if(el('tab-verlauf').classList.contains('on')) renderVerlauf();
 
-    alert('Import (' + mode + '): ' + added + ' Eintrag/Einträge ergänzt/wiederhergestellt' +
+    alert('Import (' + mode + '): ' + res.added + ' neu/wiederhergestellt' +
+          (res.updated ? (', ' + res.updated + ' aktualisiert') : '') +
           (skipped ? (', ' + skipped + ' Zeile(n) übersprungen') : '') +
           '. Insgesamt jetzt ' + entries.length + '.' +
           (ok ? '' : '\n⚠️ Konnte nicht dauerhaft gespeichert werden.'));
@@ -976,37 +988,53 @@ function backupPayload(){
   }, null, 2);
 }
 
+/* Stabiler, reihenfolge-unabhängiger Vergleich zweier Einträge (für „hat sich geändert?“). */
+function canon(o){
+  return JSON.stringify(o, function(k, v){
+    if(v && typeof v === 'object' && !Array.isArray(v)){
+      var s = {}; Object.keys(v).sort().forEach(function(kk){ s[kk] = v[kk]; }); return s;
+    }
+    return v;
+  });
+}
+
 /* Führt fremde Einträge + Tombstones duplikatfrei in den Speicher zusammen (Union).
    - Einträge, die lokal fehlen und NICHT gelöscht sind, werden ergänzt (kein Verlust).
    - Tombstones (gelöschte IDs) werden vereinigt und auf den Bestand angewendet,
      damit echte Löschungen bestehen bleiben und nicht „wiederauferstehen“.
    opts.allowRestoreDeleted === true (nur beim bewusst manuell ausgelösten „Laden“):
    - eingehende Tombstones werden NICHT angewendet (Import soll nichts lokal löschen),
-   - eine lokal gelöschte ID darf gezielt zurückgeholt werden: der Tombstone wird
-     entfernt und der Eintrag wieder eingefügt.
-   Gibt die Zahl der ergänzten/wiederhergestellten Einträge zurück. */
+   - eine lokal gelöschte ID darf gezielt zurückgeholt werden.
+   opts.updateExisting === true (nur beim manuellen „Laden“):
+   - existiert eine ID lokal bereits, wird der Eintrag mit den Werten aus der Datei
+     ERSETZT statt übersprungen – so kommen Korrekturen aus der Datei lokal an.
+   Gibt { added, updated } zurück. */
 function mergeData(incomingEntries, incomingDeleted, opts){
   opts = opts || {};
-  var allowRestore = (opts.allowRestoreDeleted === true);
+  var allowRestore   = (opts.allowRestoreDeleted === true);
+  var updateExisting = (opts.updateExisting === true);
   if(!allowRestore){
     (incomingDeleted || []).forEach(function(id){ deleted[String(id)] = true; });
   }
-  var have = {}; entries.forEach(function(e){ have[String(e.id)] = true; });
-  var added = 0;
+  var pos = {}; entries.forEach(function(e, i){ pos[String(e.id)] = i; });
+  var added = 0, updated = 0;
   (incomingEntries || []).forEach(function(raw){
     var m = migrateEntry(raw); if(!m) return;
     var id = String(m.id);
-    if(have[id]) return;                 // schon vorhanden -> keine Duplikate
-    if(deleted[id]){
-      if(allowRestore){ delete deleted[id]; }  // Tombstone gezielt aufheben (Restore-Import)
-      else { return; }                          // Normalmodus: gelöschte ID bleibt geblockt
+    if(pos[id] != null){                              // existiert lokal bereits
+      if(updateExisting){ entries[pos[id]] = m; updated++; }  // mit Datei-Werten ersetzen
+      return;                                         // sonst: keine Duplikate (wie bisher)
     }
-    entries.push(m); have[id] = true; added++;
+    if(deleted[id]){
+      if(allowRestore){ delete deleted[id]; }         // Tombstone gezielt aufheben (Restore-Import)
+      else { return; }                                // Normalmodus: gelöschte ID bleibt geblockt
+    }
+    entries.push(m); pos[id] = entries.length - 1; added++;
   });
   if(Object.keys(deleted).length){
     entries = entries.filter(function(e){ return !deleted[String(e.id)]; });
   }
-  return added;
+  return { added: added, updated: updated };
 }
 
 /* ============================ GOOGLE SHEETS (append-only Journal) ============================ */
