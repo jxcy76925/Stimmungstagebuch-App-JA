@@ -10,23 +10,24 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 :root {
-  --bg:#f3f8ee; --bg2:#e6f1e0; --surface:#fff; --surface2:#f7fbf4;
-  --border:#cfe3c8; --text:#2d4a28; --text2:#5a7a54; --text3:#8aaa84;
-  --green1:#4a9e5c; --green2:#6bbf7a; --amber:#d99a3a; --rose:#d4748a;
-  --lav:#9886c4; --sky:#5aa0bd; --warn:#cf8a4a; --r:16px; --rs:9px;
+  --bg:#f6f1f8; --bg2:#efe7f0; --surface:#fff; --surface2:#f9f5fb;
+  --border:#e8dded; --text:#3c3442; --text2:#7a7185; --text3:#a89fb3;
+  --green1:#5aa86a; --green2:#7fc890; --amber:#d99a3a; --rose:#d98aa6;
+  --lav:#9b86c6; --sky:#5aa0bd; --warn:#cf8a4a; --r:20px; --rs:13px;
+  --shadow:0 6px 20px rgba(150,120,165,.12);
 }
-body { background:linear-gradient(180deg,#fdf6f9 0%,#f3f8ee 30%,#eef6e8 100%); background-attachment:fixed; color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; padding-bottom:100px; }
+body { background:linear-gradient(180deg,#fdf2f7 0%,#f6f0fa 42%,#eef6ee 100%); background-attachment:fixed; color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; min-height:100vh; padding-bottom:100px; }
 .hills { position:fixed; bottom:0; left:0; right:0; width:100%; height:220px; pointer-events:none; z-index:0; opacity:0.35; }
 .wrap { position:relative; z-index:1; max-width:500px; margin:0 auto; }
-.hdr { background:linear-gradient(135deg,#5aaa6a,#4a9e5c); color:#fff; padding:20px 18px 16px; position:sticky; top:0; z-index:100; }
-.hdr h1 { font-size:19px; font-weight:700; }
-.hdr p { font-size:12px; opacity:.82; margin-top:2px; }
+.hdr { background:linear-gradient(135deg,#74c193 0%,#bf94c6 55%,#d98aa6 100%); color:#fff; padding:22px 18px 17px; position:sticky; top:0; z-index:100; box-shadow:0 4px 16px rgba(170,120,170,.18); }
+.hdr h1 { font-size:19px; font-weight:700; letter-spacing:.2px; }
+.hdr p { font-size:12px; opacity:.9; margin-top:2px; }
 .tabs { display:flex; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:68px; z-index:99; }
 .tab { flex:1; padding:11px 0; background:none; border:none; font-size:13px; font-weight:500; color:var(--text3); border-bottom:2px solid transparent; cursor:pointer; font-family:inherit; }
 .tab.on { color:var(--green1); border-bottom-color:var(--green1); font-weight:700; }
 .page { padding:16px; display:none; }
 .page.on { display:block; }
-.card { background:var(--surface); border-radius:var(--r); padding:16px; margin-bottom:14px; border:1px solid var(--border); }
+.card { background:var(--surface); border-radius:var(--r); padding:17px; margin-bottom:14px; border:1px solid var(--border); box-shadow:var(--shadow); }
 .lbl { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:12px; }
 .sublbl { font-size:12px; font-weight:700; color:var(--text2); margin:16px 0 9px; }
 .hint { font-size:11px; color:var(--text3); margin-bottom:10px; font-style:italic; }
@@ -94,6 +95,21 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
 .sheetsbox .arow { display:flex; gap:8px; margin-top:9px; flex-wrap:wrap; }
 .sheetsbox button { padding:8px 13px; border-radius:8px; border:1.5px solid var(--lav); background:#f3effb; color:var(--lav); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; }
 .sheetsbox button.ghost { border-color:var(--border); background:var(--surface); color:var(--text3); }
+/* Domänen-Überschriften in den Skalen */
+.sdomain { font-size:10.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--lav); margin:20px 0 13px; padding-bottom:6px; border-bottom:1px dashed var(--border); }
+.sdomain:first-child { margin-top:2px; }
+/* Krisen-/Hilfe-Hinweis bei Selbstgefährdung */
+.crisisbox { background:linear-gradient(135deg,#fff3ef,#fdeef5); border:1px solid #f0cdbe; color:#9a5b46; border-radius:var(--r); padding:13px 15px; margin:-2px 0 14px; font-size:12.5px; line-height:1.6; box-shadow:var(--shadow); }
+.crisisbox b { color:#8a3f2e; white-space:nowrap; }
+/* sanfte, „flowy" Interaktion */
+.card { transition:box-shadow .2s; }
+.mbtn2, .tg, .ebtn, .mbtn, .bkbtn, .sbtn, .sheetsbox button { transition:all .16s ease; }
+.mbtn2.on { background:#fdeef5; box-shadow:0 2px 10px rgba(200,140,170,.18); }
+.mbtn2.on .tx { color:var(--text2); }
+.sdot { border-radius:8px; transition:background .12s ease, transform .08s ease; }
+.sdot:active { transform:scale(.92); }
+.tg.on { background:#fdeef5; border-color:var(--rose); color:#b65a7e; }
+.sbtn { background:linear-gradient(135deg,#7fc890,#5aa86a); box-shadow:0 6px 18px rgba(90,168,106,.28); }
 </style>
 </head>
 <body>
@@ -157,6 +173,15 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
         <div class="hint">Nur ausfüllen was gerade relevant ist – nichts ist Pflicht.</div>
         <div id="clin-scales"></div>
       </div>
+      <div id="crisis-note" class="crisisbox" style="display:none">
+        💛 Du bist nicht allein. Wenn du daran denkst, dir etwas anzutun, hol dir bitte jetzt Unterstützung:
+        Telefonseelsorge <b>0800 111 0 111</b> · <b>0800 111 0 222</b> (24 h, kostenlos) · ärztl. Bereitschaft <b>116 117</b> · Notruf <b>112</b>.
+      </div>
+      <div class="card mode-checkin">
+        <div class="lbl">Auslöser <span style="font-weight:400;color:var(--text3)">(optional)</span></div>
+        <div class="hint">Kam dieser Zustand von selbst oder durch ein Ereignis?</div>
+        <div class="egrid" id="trigger-btns"></div>
+      </div>
 
       <!-- ===== TAGESDATEN ===== -->
       <div class="card mode-tagesdaten" style="display:none">
@@ -172,7 +197,7 @@ textarea { width:100%; background:var(--surface2); border:1px solid var(--border
         <div class="egrid" id="lamo-btns"></div>
       </div>
       <div class="card mode-tagesdaten" style="display:none">
-        <div class="lbl">Verhalten &amp; Alltag</div>
+        <div class="lbl">Tageseinschätzung</div>
         <div id="behav-scales"></div>
       </div>
       <div class="card mode-tagesdaten" style="display:none">
@@ -234,35 +259,52 @@ var MOODS = [
   {v:1,em:'😢',lb:'Sehr schlecht', cl:'#c0554a'}
 ];
 
-/* Klinische Skalen – gehören ausschließlich zum Check-In (15 Skalen). */
+/* Klinische Skalen – nur Check-In, gruppiert in transdiagnostische Domänen (dom).
+   Bewusst NICHT nach Verdachtsdiagnosen beschriftet (ein Symptom zahlt auf mehrere ein) –
+   die Diagnose-Zuordnung passiert erst in der späteren Auswertung. */
 var CLIN = [
-  {id:'episode',      nm:'Episodenmarker',                          cl:'#9079c0', ds:['Depressiv','Eher depressiv','Gemischt / unklar','Eher gehoben','Hypoman / eindeutig gehoben ⚠️'], tp:'Subjektive Einschätzung der aktuellen Episode – wichtig für Bipolar-Verlauf'},
-  {id:'leidensdruck', nm:'Leidensdruck',                            cl:'#cf7a5a', ds:['Keiner','Gering','Mittel','Stark','Unerträglich'], tp:'Wie belastend ist der aktuelle Zustand subjektiv?'},
-  {id:'anxiety',      nm:'Hintergrundangst',                        cl:'#c07a30', ds:['Keine','Leicht','Mittel','Stark','Extrem/Panik'], tp:'Schwebendes Unwohlsein, innere Nervosität'},
-  {id:'melancholy',   nm:'Melancholie / Nostalgie',                 cl:'#7b6fa0', ds:['Keine','Leicht','Mittel','Stark','Tief versunken (z.B. traurige Musik)'], tp:'Schwelgen in Vergangenheit, Sehnsucht – auch scheinbar angenehme Melancholie beobachten'},
-  {id:'hopeless',     nm:'Hoffnungslosigkeit',                      cl:'#c0554a', ds:['Keine','Leicht','Mittel','Stark','Extrem – Todeswünsche'], tp:'Inkl. passive Todeswünsche'},
-  {id:'energy',       nm:'Körperliche Energie',                     cl:'#6bbf7a', ds:['Erschöpft','Sehr niedrig','Mittel','Hoch','Sehr hoch'], tp:'Rein körperliches Energieniveau'},
-  {id:'selfeff',      nm:'Selbstwirksamkeit',                       cl:'#4a8fa8', ds:['Komplett gelähmt','Sehr gering','Mittel','Gut','Voll handlungsfähig'], tp:'Fähigkeit Aufgaben umzusetzen (ADHS)'},
-  {id:'selfimg',      nm:'Selbstwahrnehmung',                       cl:'#6bbf7a', ds:['Stark negatives Selbstbild','Negativ','Neutral','Gesund positiv ✓','Übersteigert/grandios ⚠️'], tp:'Zielbereich ist „gesund positiv“ (4). Ganz oben (5) = mögliches Hypomanie-Zeichen'},
-  {id:'social',       nm:'Soziales Kontaktbedürfnis',              cl:'#7b6fa0', ds:['Starker Rückzug','Eher zurückgezogen','Ausgeglichen ✓','Kontaktfreudig','Übersteigert/getrieben ⚠️'], tp:'Zielbereich ist „ausgeglichen“ bis „kontaktfreudig“. Rückzug (unten) wie auch getrieben (oben) sind kritisch'},
-  {id:'impuls',       nm:'Impulsivität / Reizbarkeit',             cl:'#d4901a', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Unüberlegte Entscheidungen, Reizbarkeit, Wut'},
-  {id:'racing',       nm:'Gedanken',                                cl:'#4a8fa8', ds:['Stark verlangsamt','Langsam','Normal','Schnell/viele Ideen','Gedankenrasen ⚠️'], tp:'Verlangsamung bei Depression, Rasen bei Hypomanie'},
-  {id:'concent',      nm:'Konzentration',                           cl:'#4a9e5c', ds:['Keine','Sehr gering','Mittel','Gut','Sehr fokussiert'], tp:'Kognitive Klarheit (ADHS)'},
-  {id:'dereali',      nm:'Derealisation',                           cl:'#7b6fa0', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Gefühl der Unwirklichkeit'},
-  {id:'illness',      nm:'Gefühlte psychische Stabilität',          cl:'#5aa0bd', ds:['Akut krank / kritisch','Deutlich instabil','Neutral / leicht eingeschränkt','Stabil & gesund ✓','„Geheilt“/euphorisch gesund ⚠️'], tp:'Eigenes Empfinden – nicht die Diagnose. Hoch = gut; Zielbereich „stabil & gesund“ (4). Ganz oben (5) kann Hypomanie sein'},
-  {id:'past',         nm:'Verhaftung in Vergangenheit / Personen',  cl:'#d4748a', ds:['Ganz im Hier und Jetzt','Eher präsent','Teils grübelnd','Stark in der Vergangenheit','Komplett bei Ex-Personen / Grübeln'], tp:'Limerence / Favourite-Person-Bindung, Grübeln über Vergangenes (BPS)'},
-  {id:'ident',        nm:'Identifikation mit Symptomatik',          cl:'#7b6fa0', ds:['Klarer Wunsch nach psychischer Gesundheit','Eher auf Stabilisierung ausgerichtet','Schwankend / ambivalent','Eher identifiziert mit der Symptomatik','Voll identifiziert mit der Symptomatik'], tp:'Innere Haltung zwischen Wunsch nach psychischer Gesundheit und Identifikation mit der eigenen Symptomatik'},
-  {id:'risk',         nm:'Risikoneigung / auffälliges Verhalten',   cl:'#d4901a', ds:['Unauffällig und vernünftig','Weitestgehend unauffällig und vernünftig','Leicht erhöhte Risikoneigung / leichte Auffälligkeit','Spürbar auffälliger oder riskanter als üblich','Deutlich bis stark enthemmtes, klar untypisches Verhalten'], tp:'Hang zu auffälligen, unvernünftigen, enthemmten oder für die eigene Person untypischen Entscheidungen und Verhaltensweisen'}
+  // Antrieb & Aktivierung
+  {id:'episode',      dom:'Antrieb & Aktivierung', nm:'Episodenmarker', cl:'#9079c0', ds:['Depressiv','Eher depressiv','Gemischt / unklar','Eher gehoben','Hypoman / eindeutig gehoben ⚠️'], tp:'Subjektive Einschätzung der aktuellen Episode – wichtig für Bipolar-Verlauf'},
+  {id:'activation',   dom:'Antrieb & Aktivierung', nm:'Innere Getriebenheit / Aktivierung', cl:'#d9803a', ds:['Ruhig / entspannt','Leicht angetrieben','Normal','Deutlich getrieben / unruhig','Extrem „unter Strom", kann nicht abschalten ⚠️'], tp:'Innere/körperliche Erregung unabhängig von der Stimmung. Niedrige Stimmung + hohe Aktivierung = gemischter Zustand. (Anders als „Energie": man kann erschöpft UND getrieben sein.)'},
+  {id:'energy',       dom:'Antrieb & Aktivierung', nm:'Körperliche Energie', cl:'#6bbf7a', ds:['Erschöpft','Sehr niedrig','Mittel','Hoch','Sehr hoch'], tp:'Rein körperliches Energieniveau'},
+  // Denken & Fokus
+  {id:'racing',       dom:'Denken & Fokus', nm:'Gedanken', cl:'#4a8fa8', ds:['Stark verlangsamt','Langsam','Normal','Schnell/viele Ideen','Gedankenrasen ⚠️'], tp:'Verlangsamung bei Depression, Rasen bei Hypomanie'},
+  {id:'concent',      dom:'Denken & Fokus', nm:'Konzentration', cl:'#4a9e5c', ds:['Keine','Sehr gering','Mittel','Gut','Sehr fokussiert'], tp:'Kognitive Klarheit (ADHS)'},
+  {id:'hyperfocus',   dom:'Denken & Fokus', nm:'Hyperfokus', cl:'#4f93b0', ds:['Gar nicht / sprunghaft, ablenkbar','Eher zerstreut','Normal','Stark vertieft (Flow)','Extremer Hyperfokus – Schlaf/Essen/Pflichten treten zurück ⚠️'], tp:'Übermäßige, schwer steuerbare Vertiefung (oft auf Nebensächliches) – relevant für ADHS und Hypomanie. Ergänzt „Konzentration".'},
+  // Angst & Wahrnehmung
+  {id:'anxiety',      dom:'Angst & Wahrnehmung', nm:'Hintergrundangst', cl:'#c07a30', ds:['Keine','Leicht','Mittel','Stark','Extrem/Panik'], tp:'Schwebendes Unwohlsein, innere Nervosität'},
+  {id:'dereali',      dom:'Angst & Wahrnehmung', nm:'Derealisation', cl:'#7b6fa0', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Gefühl der Unwirklichkeit'},
+  // Belastung & Sicherheit
+  {id:'leidensdruck', dom:'Belastung & Sicherheit', nm:'Leidensdruck', cl:'#cf7a5a', ds:['Keiner','Gering','Mittel','Stark','Unerträglich'], tp:'Wie belastend ist der aktuelle Zustand subjektiv?'},
+  {id:'hopeless',     dom:'Belastung & Sicherheit', nm:'Hoffnungslosigkeit', cl:'#c0554a', ds:['Keine','Leicht','Mittel','Stark','Extrem – Todeswünsche'], tp:'Inkl. passive Todeswünsche'},
+  {id:'empty',        dom:'Belastung & Sicherheit', nm:'Innere Leere', cl:'#8c84a6', ds:['Keine','Leicht','Mittel','Stark','Tiefe, anhaltende Leere'], tp:'Anhaltendes Gefühl innerer Leere/Taubheit – abzugrenzen von Traurigkeit/Hoffnungslosigkeit (BPS)'},
+  {id:'harm',         dom:'Belastung & Sicherheit', nm:'Selbstgefährdung / Suizidgedanken', cl:'#c24a44', ds:['Keine','Flüchtige Gedanken','Häufiger / intensiver','Konkreter Drang oder Pläne ⚠️','Akut – ich brauche jetzt Hilfe ⚠️'], tp:'Über die Hoffnungslosigkeit hinaus: Gedanken an Selbstverletzung/Suizid. Bei 4–5 bitte Hilfe holen.'},
+  // Selbst & Stabilität
+  {id:'selfimg',      dom:'Selbst & Stabilität', nm:'Selbstwahrnehmung', cl:'#6bbf7a', ds:['Stark negatives Selbstbild','Negativ','Neutral','Gesund positiv ✓','Übersteigert/grandios ⚠️'], tp:'Zielbereich ist „gesund positiv“ (4). Ganz oben (5) = mögliches Hypomanie-Zeichen'},
+  {id:'selfeff',      dom:'Selbst & Stabilität', nm:'Selbstwirksamkeit', cl:'#4a8fa8', ds:['Komplett gelähmt','Sehr gering','Mittel','Gut','Voll handlungsfähig'], tp:'Fähigkeit Aufgaben umzusetzen (ADHS)'},
+  {id:'illness',      dom:'Selbst & Stabilität', nm:'Gefühlte psychische Stabilität', cl:'#5aa0bd', ds:['Akut krank / kritisch','Deutlich instabil','Neutral / leicht eingeschränkt','Stabil & gesund ✓','„Geheilt“/euphorisch gesund ⚠️'], tp:'Eigenes Empfinden – nicht die Diagnose. Hoch = gut; Zielbereich „stabil & gesund“ (4). Ganz oben (5) kann Hypomanie sein'},
+  {id:'ident',        dom:'Selbst & Stabilität', nm:'Identifikation mit Symptomatik', cl:'#7b6fa0', ds:['Klarer Wunsch nach psychischer Gesundheit','Eher auf Stabilisierung ausgerichtet','Schwankend / ambivalent','Eher identifiziert mit der Symptomatik','Voll identifiziert mit der Symptomatik'], tp:'Innere Haltung zwischen Wunsch nach psychischer Gesundheit und Identifikation mit der eigenen Symptomatik'},
+  // Impuls & Risiko
+  {id:'impuls',       dom:'Impuls & Risiko', nm:'Impulsivität / Reizbarkeit', cl:'#d4901a', ds:['Keine','Leicht','Mittel','Stark','Extrem'], tp:'Unüberlegte Entscheidungen, Reizbarkeit, Wut'},
+  {id:'risk',         dom:'Impuls & Risiko', nm:'Risikoneigung / auffälliges Verhalten', cl:'#d4901a', ds:['Unauffällig und vernünftig','Weitestgehend unauffällig und vernünftig','Leicht erhöhte Risikoneigung / leichte Auffälligkeit','Spürbar auffälliger oder riskanter als üblich','Deutlich bis stark enthemmtes, klar untypisches Verhalten'], tp:'Hang zu auffälligen, unvernünftigen, enthemmten oder für die eigene Person untypischen Entscheidungen und Verhaltensweisen'},
+  // Bezug & Bindung
+  {id:'social',       dom:'Bezug & Bindung', nm:'Soziales Kontaktbedürfnis', cl:'#7b6fa0', ds:['Starker Rückzug','Eher zurückgezogen','Ausgeglichen ✓','Kontaktfreudig','Übersteigert/getrieben ⚠️'], tp:'Zielbereich ist „ausgeglichen“ bis „kontaktfreudig“. Rückzug (unten) wie auch getrieben (oben) sind kritisch'},
+  {id:'past',         dom:'Bezug & Bindung', nm:'Verhaftung in Vergangenheit / Personen', cl:'#d4748a', ds:['Ganz im Hier und Jetzt','Eher präsent','Teils grübelnd','Stark in der Vergangenheit','Komplett bei Ex-Personen / Grübeln'], tp:'Limerence / Favourite-Person-Bindung, Grübeln über Vergangenes (BPS)'}
 ];
 
-/* Verhaltens-/Alltagsskalen – gehören ausschließlich zu Tagesdaten. */
+/* Verhaltens-/Alltags-/Schlafskalen – gehören ausschließlich zu Tagesdaten. */
 var BEHAV = [
-  {id:'eating',   nm:'Essverhalten',                cl:'#c07a30', ds:['Gar nicht gegessen','Sehr wenig','Normal/ausgewogen','Zu viel','Binge-Episode'], tp:'Binge Eating als klinischer Marker'},
-  {id:'spending', nm:'Ausgabeverhalten',            cl:'#7b6fa0', ds:['Gespart','Sparsam','Normal','Etwas mehr als geplant','Overspending ⚠️'], tp:'Impulsive Ausgaben als Hypomanie-Frühzeichen'},
-  {id:'screen',   nm:'Bildschirmzeit',              cl:'#4a8fa8', ds:['Nur das Nötigste','Wenig','Normal','Viel','Extrem viel – kaum in Realität'], tp:''},
-  {id:'haushalt', nm:'Haushalt & Alltagsaufgaben',  cl:'#6bbf7a', ds:['Alles schleifen lassen','Großer Rückstand','Das Nötigste','Gut im Griff','Alles auf Stand'], tp:'Gesamtzustand, nicht nur heute – ruhig nur eintragen wenn sich was ändert'},
-  {id:'selfcare', nm:'Selbstpflege & Maintenance',  cl:'#d4748a', ds:['Komplett vernachlässigt','Nur das Nötigste','Grundpflege ok','Gepflegt & dranbleibend','Top (inkl. Kosmetik/Extras)'], tp:'Gesamtzustand, nicht nur heute – ruhig nur eintragen wenn sich was ändert'}
+  {id:'sleepneed', dom:'Schlaf & Erholung', nm:'Schlafbedürfnis / Erholung', cl:'#5aa0bd', ds:['Erschöpft trotz Schlaf','Wenig erholt','Normal','Wenig Schlaf, aber wach/fit','Kaum Schlaf nötig, voller Energie ⚠️'], tp:'Verringertes Schlafbedürfnis (wach trotz wenig Schlaf) ist ein zentraler (Hypo-)Manie-Marker – anders als erschöpfende Schlaflosigkeit'},
+  {id:'eating',   dom:'Verhalten & Alltag', nm:'Essverhalten',                cl:'#c07a30', ds:['Gar nicht gegessen','Sehr wenig','Normal/ausgewogen','Zu viel','Binge-Episode'], tp:'Binge Eating als klinischer Marker'},
+  {id:'spending', dom:'Verhalten & Alltag', nm:'Ausgabeverhalten',            cl:'#7b6fa0', ds:['Gespart','Sparsam','Normal','Etwas mehr als geplant','Overspending ⚠️'], tp:'Impulsive Ausgaben als Hypomanie-Frühzeichen'},
+  {id:'screen',   dom:'Verhalten & Alltag', nm:'Bildschirmzeit',              cl:'#4a8fa8', ds:['Nur das Nötigste','Wenig','Normal','Viel','Extrem viel – kaum in Realität'], tp:''},
+  {id:'haushalt', dom:'Verhalten & Alltag', nm:'Haushalt & Alltagsaufgaben',  cl:'#6bbf7a', ds:['Alles schleifen lassen','Großer Rückstand','Das Nötigste','Gut im Griff','Alles auf Stand'], tp:'Gesamtzustand, nicht nur heute – ruhig nur eintragen wenn sich was ändert'},
+  {id:'selfcare', dom:'Verhalten & Alltag', nm:'Selbstpflege & Maintenance',  cl:'#d4748a', ds:['Komplett vernachlässigt','Nur das Nötigste','Grundpflege ok','Gepflegt & dranbleibend','Top (inkl. Kosmetik/Extras)'], tp:'Gesamtzustand, nicht nur heute – ruhig nur eintragen wenn sich was ändert'}
 ];
+
+/* Auslöser für den aktuellen Zustand (Check-In, Einzelauswahl) – trennt reaktiv (BPS/RSD)
+   von autonom (bipolar). Bewusst eine Auswahl statt 1–5. */
+var TRIGGERS = ['Kam von selbst','Zwischenmenschlich ausgelöst','Anderes Ereignis'];
 
 var TAGS = [
   'Gearbeitet','Frei gehabt','Sport / Fitness','In der Natur gewesen','Sozialer Kontakt',
@@ -291,6 +333,7 @@ var selMood = null;
 var selTags = [];
 var selElv = null;
 var selLamo = null;
+var selTrigger = null;   // Auslöser-Auswahl (Check-In)
 var curMode = 'checkin';
 var loadFailed = false;
 var deleted = {};          // gelöschte Einträge (id -> true): verhindert Wiederauferstehen beim Zusammenführen
@@ -342,6 +385,7 @@ function migrateEntry(e){
     note: (typeof e.note === 'string') ? e.note : ''
   };
   if(e.mood != null) o.mood = e.mood;
+  if(e.trigger) o.trigger = e.trigger;
   if(e.cv && typeof e.cv === 'object') o.cv = e.cv;
   if(e.bv && typeof e.bv === 'object') o.bv = e.bv;
   if(Array.isArray(e.tags)) o.tags = e.tags.slice();
@@ -434,7 +478,12 @@ function buildMoods(){
 
 function buildScales(containerId, defs, stateObj){
   var c = el(containerId); c.innerHTML = '';
+  var lastDom = null;
   defs.forEach(function(s){
+    if(s.dom && s.dom !== lastDom){
+      var h = document.createElement('div'); h.className = 'sdomain'; h.textContent = s.dom;
+      c.appendChild(h); lastDom = s.dom;
+    }
     var cur = stateObj[s.id];
     var row = document.createElement('div'); row.className = 'srow';
 
@@ -464,6 +513,12 @@ function buildScales(containerId, defs, stateObj){
 function setScale(stateObj, s, v){
   stateObj[s.id] = (stateObj[s.id]===v) ? null : v;
   paintScale(s, stateObj[s.id]);
+  if(s.id === 'harm') updateCrisisNote(stateObj[s.id]);
+}
+/* Blendet bei Selbstgefährdung 4–5 die Hilfe-Nummern ein. */
+function updateCrisisNote(v){
+  var box = el('crisis-note'); if(!box) return;
+  box.style.display = (curMode === 'checkin' && v != null && v >= 4) ? 'block' : 'none';
 }
 function paintScale(s, v){
   var sv = el('sv-'+s.id); if(sv) sv.textContent = (v!=null) ? s.ds[v-1] : '–';
@@ -503,6 +558,7 @@ function buildChoice(containerId, options, getSel, onPick){
 }
 function buildElv(){ buildChoice('elv-btns', ELVANSE, function(){return selElv;}, function(v){ selElv=v; buildElv(); }); }
 function buildLamo(){ buildChoice('lamo-btns', LAMOTRIGIN, function(){return selLamo;}, function(v){ selLamo=v; buildLamo(); }); }
+function buildTriggers(){ buildChoice('trigger-btns', TRIGGERS, function(){return selTrigger;}, function(v){ selTrigger=v; buildTriggers(); }); }
 
 function rebuildInputs(){
   buildMoods();
@@ -511,6 +567,8 @@ function rebuildInputs(){
   buildTags();
   buildElv();
   buildLamo();
+  buildTriggers();
+  updateCrisisNote(cv.harm);
 }
 
 /* ============================ MODUS / RESET ============================ */
@@ -525,10 +583,11 @@ function setMode(m){
   el('modehint').textContent = (m==='checkin')
     ? 'Momentaufnahme – mehrfach täglich möglich.'
     : 'Tageszusammenfassung – Schlaf, Medikamente, Verhalten & Umstände.';
+  updateCrisisNote(cv.harm);   // nur im Check-In sichtbar
 }
 
 function resetState(){
-  selMood = null; selTags = []; selElv = null; selLamo = null;
+  selMood = null; selTags = []; selElv = null; selLamo = null; selTrigger = null;
   CLIN.forEach(function(s){ cv[s.id] = null; });
   BEHAV.forEach(function(s){ bv[s.id] = null; });
   var now = new Date();
@@ -557,7 +616,8 @@ function saveEntry(){
   if(curMode === 'checkin'){
     e.mood = selMood;
     e.cv = collect(CLIN, cv);
-    if(e.mood==null && Object.keys(e.cv).length===0 && !e.note){
+    e.trigger = selTrigger || null;
+    if(e.mood==null && Object.keys(e.cv).length===0 && !e.trigger && !e.note){
       alert('Für einen Check-In bitte mindestens die Stimmung, eine Skala oder eine Notiz angeben.');
       return;
     }
@@ -660,6 +720,9 @@ function entryCard(e){
   CLIN.forEach(function(s){ if(e.cv && e.cv[s.id]!=null) cb.appendChild(badgeEl(shortName(s.nm)+' '+e.cv[s.id]+'/5', s.cl)); });
   if(cb.children.length) card.appendChild(cb);
 
+  // Auslöser
+  if(e.trigger){ var tw = document.createElement('div'); tw.className = 'etags'; tw.appendChild(tagEl('🎯 ' + e.trigger, '#9079c0')); card.appendChild(tw); }
+
   // Verhaltens-Badges
   var bb = document.createElement('div'); bb.className = 'ebadges';
   BEHAV.forEach(function(s){ if(e.bv && e.bv[s.id]!=null) bb.appendChild(badgeEl(s.nm+' '+e.bv[s.id]+'/5', s.cl)); });
@@ -738,9 +801,13 @@ var STAT_HINTS = {
   nightSleep:'Durchschnittliche Stunden pro Nacht',
   napSleep:'Durchschnittliche Stunden Mittagsschlaf',
   episode:'Niedrig = depressiv, hoch = gehoben, Mitte = gemischt',
+  activation:'Höhere Werte = stärker getrieben / „unter Strom"',
   leidensdruck:'Höhere Werte = stärkere Belastung',
   anxiety:'Höhere Werte = stärkere Belastung',
-  melancholy:'Höhere Werte = stärkere Melancholie/Nostalgie',
+  hyperfocus:'Höhere Werte = stärkerer, schwerer steuerbarer Hyperfokus',
+  empty:'Höhere Werte = stärkere innere Leere',
+  harm:'Höhere Werte = stärkere Selbstgefährdung',
+  sleepneed:'Hoch = wach trotz wenig Schlaf (Manie-Marker), niedrig = erschöpft',
   hopeless:'Höhere Werte = stärkere Hoffnungslosigkeit',
   energy:'Höhere Werte = mehr körperliche Energie',
   selfeff:'Höhere Werte = stärkere Handlungsfähigkeit',
@@ -931,7 +998,7 @@ function csv(v){
   return /[",\n\r;]/.test(v) ? ('"' + v.replace(/"/g,'""') + '"') : v;
 }
 function doExport(){
-  var hdr = ['Datum','Uhrzeit','Typ','Stimmung(1-7)','Stimmung Label'];
+  var hdr = ['Datum','Uhrzeit','Typ','Auslöser','Stimmung(1-7)','Stimmung Label'];
   CLIN.forEach(function(s){ hdr.push(s.nm); });
   hdr.push('Nachtschlaf(Std)','Mittagsschlaf(Std)','Elvanse','Elvanse-Uhrzeit','Lamotrigin');
   BEHAV.forEach(function(s){ hdr.push(s.nm); });
@@ -941,7 +1008,7 @@ function doExport(){
   var srt = entries.slice().sort(function(a,b){ return (a.date+(a.time||'')).localeCompare(b.date+(b.time||'')); });
   srt.forEach(function(e){
     var mo = moodFor(e.mood);
-    var row = [e.date, e.time||'', e.type==='checkin' ? 'Check-In' : 'Tagesdaten', e.mood!=null ? e.mood : '', mo ? mo.lb : ''];
+    var row = [e.date, e.time||'', e.type==='checkin' ? 'Check-In' : 'Tagesdaten', e.trigger||'', e.mood!=null ? e.mood : '', mo ? mo.lb : ''];
     CLIN.forEach(function(s){ row.push(e.cv && e.cv[s.id]!=null ? e.cv[s.id] : ''); });
     row.push(e.nightSleep!=null ? e.nightSleep : '', e.napSleep!=null ? e.napSleep : '', e.elv||'', e.elvTime||'', e.lamo||'');
     BEHAV.forEach(function(s){ row.push(e.bv && e.bv[s.id]!=null ? e.bv[s.id] : ''); });
@@ -1045,7 +1112,7 @@ function mergeData(incomingEntries, incomingDeleted, opts){
    angehängt (Duplikate sind laut Vorgabe erlaubt). Apps-Script: siehe apps-script/Code.gs */
 
 /* Sichtbare deutsche Spaltenüberschriften (entsprechen den beiden Sheet-Blättern). */
-var CHECKIN_COLS = ['Eintrags-ID','Datum','Uhrzeit','Typ','Notiz','Gesamtstimmung']
+var CHECKIN_COLS = ['Eintrags-ID','Datum','Uhrzeit','Typ','Notiz','Auslöser','Gesamtstimmung']
   .concat(CLIN.map(function(s){ return s.nm; }));
 var TAGESDATEN_COLS = ['Eintrags-ID','Datum','Uhrzeit','Typ','Notiz','Nachtschlaf Std.','Mittagsschlaf Std.','Elvanse heute','Elvanse-Uhrzeit','Lamotrigin heute']
   .concat(BEHAV.map(function(s){ return s.nm; }))
@@ -1060,7 +1127,7 @@ function setSheetsUrl(u){ try { if(u) localStorage.setItem(SHEETS_URL_KEY, u); e
 /* Eintrag -> Zeilen-Payload für das passende Blatt (Werte in Spaltenreihenfolge). */
 function sheetRowFor(e){
   if(e.type === 'checkin'){
-    var v = [e.id, e.date||'', e.time||'', 'Check-In', e.note||'', e.mood!=null ? e.mood : ''];
+    var v = [e.id, e.date||'', e.time||'', 'Check-In', e.note||'', e.trigger||'', e.mood!=null ? e.mood : ''];
     CLIN.forEach(function(s){ v.push(e.cv && e.cv[s.id]!=null ? e.cv[s.id] : ''); });
     return { sheet:'Check-In', headers:CHECKIN_COLS, values:v };
   }
@@ -1228,6 +1295,7 @@ function csvToEntries(text){
   function toInt(v){ var n = parseInt(v, 10); return isNaN(n) ? null : n; }
   var ALIAS = {
     id:['Eintrags-ID','id'], date:['Datum'], time:['Uhrzeit'], note:['Notiz'], typ:['Typ','type'],
+    trigger:['Auslöser'],
     mood:['Gesamtstimmung','Stimmung(1-7)','Stimmung'],
     night:['Nachtschlaf Std.','Nachtschlaf(Std)','Nachtschlaf'],
     nap:['Mittagsschlaf Std.','Mittagsschlaf(Std)','Mittagsschlaf'],
@@ -1249,6 +1317,7 @@ function csvToEntries(text){
     if(isCheckin){
       e.type = 'checkin';
       var m = toInt(pick(row, ALIAS.mood)); if(m != null) e.mood = m;
+      var tg2 = pick(row, ALIAS.trigger); if(tg2) e.trigger = tg2;
       var cvv = {};
       CLIN.forEach(function(s){ var val = cellInt(row, s.nm); if(val != null) cvv[s.id] = val; });
       e.cv = cvv;
